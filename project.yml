@@ -1,0 +1,21 @@
+# project.yml — configuración del proyecto que leen los agentes.
+#
+# Formato: pares `clave: valor` de una sola línea, sin anidamiento. Lo parsea
+# `agents/config.py` sin PyYAML a propósito, para que el arnés funcione en un
+# repo recién clonado antes de instalar nada.
+#
+# Si renombras el paquete, `project_slug` es lo que hay que cambiar aquí.
+
+project_name: MeshHarmes
+project_slug: app
+project_author_name: cacelass
+project_description: Arnés de agentes e infraestructura de proyecto para trabajo general en Python.
+project_version: 0.1.0
+# La versión del .venv. uv la resuelve desde requires-python en pyproject.toml.
+python_version: 3.12
+
+# Capacidades: los agentes las consultan para no ofrecer acciones sobre
+# infraestructura que este proyecto no tiene.
+use_api: false
+use_docker: false
+use_cli: true

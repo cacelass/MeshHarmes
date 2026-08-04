@@ -1,0 +1,3 @@
+[bandit]
+exclude_dirs = .venv,tests,docs,agents/tests
+skips = B101,B404,B603,B113

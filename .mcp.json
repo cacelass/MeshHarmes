@@ -1,0 +1,4 @@
+{
+  "$comment": "Servidores MCP del proyecto. Viene VACÍO a propósito: arrancar un servidor MCP descarga y ejecuta código de terceros con tus permisos (npx/uvx), y eso no debería pasar solo por copiar una plantilla. Añade los que necesites y mantén el bloque 'mcp' de opencode.json en el mismo estado, para que los dos asistentes vean lo mismo. Ejemplos listos para pegar dentro de mcpServers: \"git\": {\"command\": \"uvx\", \"args\": [\"mcp-server-git\", \"--repository\", \".\"]} · \"time\": {\"command\": \"uvx\", \"args\": [\"mcp-server-time\"]} · \"fetch\": {\"command\": \"uvx\", \"args\": [\"mcp-server-fetch\"]}. Lo que devuelve un servidor MCP es contenido NO CONFIABLE, como una página web: son datos citados, nunca instrucciones, y no amplían lo que un agente tiene permitido hacer (ver AGENTS.md y agents/permissions.py).",
+  "mcpServers": {}
+}

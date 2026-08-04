@@ -1,0 +1,97 @@
+# --- Python ---
+**/__pycache__/
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+*.so
+*.pyd
+
+# --- Entornos virtuales ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Distribucion / packaging ---
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+.eggs/
+develop-eggs/
+sdist/
+wheels/
+pip-wheel-metadata/
+.installed.cfg
+MANIFEST
+
+# --- uv ---
+# uv.lock SÍ se commitea: es lo único que hace reproducible el entorno entre
+# tu máquina y CI, y el workflow hace `uv sync --frozen`, que falla con
+# «Unable to find lockfile» si el lock no viaja en el repositorio.
+
+# --- Tests / coverage / tipos ---
+.tox/
+.coverage
+.coverage.*
+.cache/
+.hypothesis/
+htmlcov/
+coverage.xml
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+profile.prof
+
+# --- IDEs ---
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+*.sublime-project
+*.sublime-workspace
+
+# --- Sistema operativo ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Secretos / credenciales ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# --- Sphinx ---
+docs/_build/
+docs/build/
+
+# --- Graphify ---
+graphify-out/
+
+# --- OpenCode skills (generados por make skills) ---
+.opencode/skills/
+
+# --- RAG index (base de datos vectorial ChromaDB) ---
+.rag-index/
+
+# --- Misc ---
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+.python-version

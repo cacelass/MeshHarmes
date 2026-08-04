@@ -1,0 +1,179 @@
+{
+  "$comment": "Backlog del arnés. Fuente de verdad de QUÉ hay que hacer. El orden no es decorativo: las dos primeras features fijan el rumbo (qué se quiere resolver → cómo se va a resolver) antes de que nadie escriba código. Los agentes leen la primera feature pendiente, la marcan in_progress y no la marcan done hasta que ./init.sh pasa en verde. Tras cerrar (harness finish), el líder propone el commit del cierre con git commit_feature --dry-run y espera confirmación del usuario. Estados válidos: pending | in_progress | done | blocked. Este backlog es el de arranque de un proyecto nuevo: sustitúyelo por el tuyo con 'harness add'.",
+  "version": 1,
+  "project": "MeshHarmes",
+  "features": [
+    {
+      "id": "SCOPE-001",
+      "title": "Definir qué se quiere resolver",
+      "description": "Antes de escribir código: qué problema resuelve este proyecto, para quién, cuándo se considera hecho y qué queda explícitamente fuera. Es la feature que da rumbo a todas las demás — sin un criterio de 'hecho' verificable, ninguna decisión posterior se toma sobre otra cosa que no sea intuición.",
+      "acceptance_criteria": [
+        "Existe vault/01_PROYECTO/objetivo.md con cuatro apartados: problema, usuario/consumidor, criterio de hecho y fuera de alcance",
+        "El criterio de hecho es verificable por un comando o una observación concreta, no 'que funcione bien'",
+        "El apartado de fuera de alcance nombra al menos dos cosas que este proyecto NO va a hacer",
+        "El README describe el objetivo en una frase propia, no con el texto de la plantilla",
+        "./init.sh termina con ENTORNO LISTO"
+      ],
+      "status": "pending",
+      "depends_on": []
+    },
+    {
+      "id": "DESIGN-001",
+      "title": "Decidir cómo se va a resolver",
+      "description": "Escribir la arquitectura antes de implementarla: qué piezas hay, cómo se hablan, qué alternativas se consideraron y por qué se descartaron. No es un documento ceremonial — es lo que evita que cada feature reinvente una estructura distinta.",
+      "acceptance_criteria": [
+        "vault/01_PROYECTO/arquitectura.md describe las piezas del sistema y el flujo entre ellas",
+        "Hay al menos una alternativa considerada y descartada, con el motivo escrito",
+        "Están nombrados los riesgos conocidos y qué decisiones se dejan para más adelante",
+        "El paquete app/ está renombrado al nombre real del proyecto (project.yml, pyproject.toml, Makefile y coverage coherentes)",
+        "./init.sh termina con ENTORNO LISTO"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "SCOPE-001"
+      ]
+    },
+    {
+      "id": "CORE-001",
+      "title": "Primera pieza funcional de punta a punta",
+      "description": "Implementar el camino más fino que atraviesa el sistema entero y hace algo útil: entrada real, procesamiento real, salida real. Un vertical slice antes que capas completas — así se descubre pronto lo que la arquitectura no había previsto.",
+      "acceptance_criteria": [
+        "El comando o entrada principal se ejecuta sin errores sobre un caso real",
+        "Existen tests que cubren el camino feliz y al menos un caso de error",
+        "make check pasa (lint + typecheck + test + arnés)",
+        "El README documenta cómo ejecutarlo, con la salida esperada"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "DESIGN-001"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Batería de calidad en verde",
+      "description": "Dejar make check (lint + typecheck + test + arnés) pasando de punta a punta, y el CI ejecutando lo mismo que se ejecuta en local. Es la condición que ./init.sh verifica antes de dejar trabajar a cualquier agente.",
+      "acceptance_criteria": [
+        "make lint pasa sin errores",
+        "make typecheck pasa sin errores",
+        "make test pasa y la salida real queda como evidencia",
+        "El workflow de CI ejecuta los mismos comandos que make check",
+        "./init.sh termina con ENTORNO LISTO"
+      ],
+      "status": "pending",
+      "depends_on": []
+    },
+    {
+      "id": "BOOT-001",
+      "title": "Arranque en frio operativo: contratos inline + agente bootstrap",
+      "description": "Completar el codigo ya escrito y nunca ejecutado: el soporte de contratos inline en agents/contracts.py y el agente bootstrap. Incluye arreglar la colision de nombre entre la accion 'describe' del agente y BaseAgent.describe(), que hoy rompe 'python -m agents list'.",
+      "acceptance_criteria": [
+        "python -m agents list lista los 24 agentes sin excepcion, bootstrap incluido",
+        "python -m agents describe bootstrap devuelve el contrato inline",
+        "existe agents/prompts/bootstrap_agent.md con prosa a mano y bloque AUTOGEN",
+        "uv run python -m agents.prompts_sync sale en verde",
+        "hay tests de contratos inline (inline_contracts, all_contracts, contract_for, validate_contracts) y de las cuatro acciones de bootstrap",
+        "make check pasa"
+      ],
+      "status": "done",
+      "depends_on": [],
+      "started": "2026-08-04",
+      "review_rounds": 0,
+      "closed": "2026-08-04"
+    },
+    {
+      "id": "BOOT-002",
+      "title": "installer scaffold: creador de agentes autocontenidos",
+      "description": "Accion nueva del agente installer que genera un agente completo a partir de una spec: modulo en agents/external/ con @register_agent y contrato inline, acciones stub que devuelven success=False con needs (no mienten), su prompt en agents/prompts/<name>_agent.md y su test. dry_run por defecto.",
+      "acceptance_criteria": [
+        "run installer scaffold --name X --description ... --dry_run true enseña lo que generaria sin escribir ningun fichero",
+        "con dry_run false genera modulo en agents/external/, prompt en agents/prompts/ y test, y el agente queda registrado",
+        "el agente generado tiene contrato inline y validate_contracts() no reporta problemas con el",
+        "las acciones stub devuelven AgentResult(success=False) con needs, nunca un exito falso",
+        "scaffold rechaza nombres que colisionan con metodos de BaseAgent o con un agente ya registrado",
+        "scaffold esta en destructive del contrato de installer y la puerta lo bloquea sin --yes",
+        "uv run python -m agents.prompts_sync sale en verde tras generar un agente",
+        "hay tests de todo lo anterior",
+        "make check pasa"
+      ],
+      "status": "done",
+      "depends_on": [
+        "BOOT-001"
+      ],
+      "started": "2026-08-04",
+      "review_rounds": 0,
+      "closed": "2026-08-04"
+    },
+    {
+      "id": "BOOT-003",
+      "title": "Protocolo de arranque en frio en el lider + documentacion",
+      "description": "Paso 0 del protocolo del lider: en la primera ejecucion, run bootstrap status antes que nada; si first_run es true, ciclo de onboarding (seed, describe, suggest_agents, scaffold) antes de abrir features normales. Mas la documentacion del agente nuevo y de scaffold.",
+      "acceptance_criteria": [
+        ".opencode/agents/lider.md tiene el paso 0 con el ciclo de onboarding y las condiciones de salida",
+        ".claude/agents/lider.md queda regenerado con make assistants-sync, no editado a mano",
+        "los tickets ONBOARD-001 y ONBOARD-002 estan sembrados en el backlog via run bootstrap seed",
+        "agents/README.md dice 24 agentes, incluye bootstrap en la tabla y documenta installer scaffold",
+        "AGENTS.md documenta el arranque en frio",
+        "vault/05_AGENTES/ tiene la ficha del agente bootstrap",
+        "uv run python -m agents.prompts_sync sale en verde",
+        "make check pasa y ./init.sh termina con ENTORNO LISTO"
+      ],
+      "status": "done",
+      "depends_on": [
+        "BOOT-002"
+      ],
+      "started": "2026-08-04",
+      "review_rounds": 0,
+      "closed": "2026-08-04"
+    },
+    {
+      "id": "ONBOARD-001",
+      "title": "Entender el proyecto",
+      "description": "Nadie puede implementar contra un objetivo que no está escrito. Esta feature convierte lo que el usuario tiene en la cabeza en algo que un agente pueda leer: qué problema se resuelve, para quién, cuándo está hecho y qué queda fuera. El agente `bootstrap` hace las preguntas; el usuario las responde; la respuesta acaba en project.yml y en el vault.",
+      "acceptance_criteria": [
+        "uv run python -m agents run bootstrap describe --description \"<respuesta del usuario>\" --yes devuelve success=true",
+        "project.yml tiene una descripción propia del proyecto, no la de la plantilla",
+        "vault/01_PROYECTO/objetivo.md recoge problema, usuario, criterio de hecho y fuera de alcance",
+        "El README describe el objetivo en una frase propia",
+        "./init.sh termina con ENTORNO LISTO"
+      ],
+      "status": "pending",
+      "depends_on": []
+    },
+    {
+      "id": "ONBOARD-002",
+      "title": "Qué se sabe ya y qué agentes hacen falta",
+      "description": "Con el objetivo escrito, dos preguntas antes de construir nada: qué ha publicado ya alguien sobre este problema (papers y fuentes que aporten al repo, indexadas para poder consultarlas después) y qué trabajo de este proyecto no cubre ningún agente actual. Lo segundo se resuelve creando los agentes que falten con `installer scaffold`, no improvisando scripts sueltos.",
+      "acceptance_criteria": [
+        "uv run python -m agents run research find_papers devuelve success=true con al menos 3 referencias relevantes",
+        "Las URLs útiles quedan indexadas (run rag index_urls --urls ...) y run rag search las encuentra",
+        "vault/01_PROYECTO/estado-del-arte.md resume cada fuente en 2-3 líneas: qué se toma y qué se descarta",
+        "uv run python -m agents run bootstrap suggest_agents devuelve la lista de huecos de capacidad",
+        "Cada hueco aceptado tiene su agente creado con installer scaffold, con contrato, prompt y test",
+        "uv run python -m agents.prompts_sync sale en verde (todo agente registrado tiene prompt y contrato)",
+        "./init.sh termina con ENTORNO LISTO"
+      ],
+      "status": "pending",
+      "depends_on": [
+        "ONBOARD-001"
+      ]
+    },
+    {
+      "id": "BOOT-004",
+      "title": "knowledge sync_agent_cards: las fichas del vault desde los contratos",
+      "description": "El contrato de knowledge dice que puebla vault/05_AGENTES/ con una ficha por agente desde contracts.py, y eso no esta implementado: ninguna accion escribe ese directorio. Las 23 fichas actuales vienen de la plantilla y ya estan desfasadas (falta bootstrap). Esta feature implementa la accion que el contrato ya prometia.",
+      "acceptance_criteria": [
+        "run knowledge sync_agent_cards genera una ficha por agente registrado en vault/05_AGENTES/, incluidos los de contrato inline como bootstrap",
+        "la ficha trae rol, can, cannot, needs, owns, collaborates y destructive desde all_contracts(), no texto a mano",
+        "dry_run por defecto que enseña que ficheros escribiria sin escribir nada",
+        "las fichas de la plantilla que ya no corresponden a ningun agente registrado se reportan, no se borran en silencio",
+        "hay tests sobre tmp_path que no tocan el vault real del repo",
+        "make check pasa y prompts_sync sigue en verde"
+      ],
+      "status": "done",
+      "depends_on": [],
+      "started": "2026-08-04",
+      "review_rounds": 0,
+      "closed": "2026-08-04"
+    }
+  ]
+}

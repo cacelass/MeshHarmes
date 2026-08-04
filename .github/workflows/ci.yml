@@ -1,0 +1,72 @@
+# CI de MeshHarmes — ejecuta lo mismo que `make check`, más el arnés.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Lint
+        run: |
+          uv run ruff check app/ tests/ agents/
+          uv run ruff format --check app/ tests/
+
+      # Sin `--strict` en la línea: la configuración vive en pyproject.toml.
+      # Pasarlo aquí haría que CI y tu máquina comprobasen cosas distintas.
+      - name: Type check
+        run: uv run mypy app/ tests/
+
+      - name: Test
+        run: uv run pytest tests/ -v --cov=app --cov-report=xml
+
+      # Bloqueante a propósito: el arnés exige evidencia para cerrar una
+      # feature, pero sus propios tests podían romperse sin que CI se enterase.
+      - name: Agent tests
+        run: uv run pytest agents/tests/ -v --tb=short
+
+      # La puerta del arnés, en CI. Sin --quick no aportaría nada: los tests
+      # ya se ejecutaron arriba y el fallo saldría dos veces.
+      - name: Harness gate
+        run: |
+          chmod +x init.sh
+          ./init.sh --quick
+
+      # Los prompts de los agentes se derivan del código y de contracts.py.
+      # Si alguien añade una acción y no regenera, esto lo caza.
+      - name: Prompts in sync
+        run: uv run python -m agents.prompts_sync
+
+      # Solo las suites deterministas: `smoke` ejecuta la acción principal de
+      # cada agente y depende del estado del repo, así que no mide nada estable.
+      - name: Agent evals
+        run: uv run python -m agents.evals.runner --harness --routing --contracts
+
+      - name: Security scan
+        run: uv run bandit -r app/ -f txt -x tests
+        continue-on-error: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

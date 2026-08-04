@@ -1,0 +1,275 @@
+"""
+gstack.stack — Núcleo de la stack: cola de operaciones + ejecución secuencial.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from agents.context import get_context
+from agents.core.base_agent import AgentResult
+from agents.orchestrator import Orchestrator
+
+
+@dataclass
+class StackStep:
+    agent: str
+    action: str
+    kwargs: dict[str, Any] = field(default_factory=dict)
+    auto_commit_message: str | None = None
+    result_key: str | None = None
+    run_if: Callable[[list[AgentResult], dict[str, AgentResult]], bool] | None = None
+
+
+@dataclass
+class StackResult:
+    success: bool
+    steps: list[StackStep]
+    results: list[AgentResult]
+    failed_at: int | None = None
+
+    @property
+    def summary(self) -> str:
+        total = len(self.steps)
+        ok = sum(1 for r in self.results if r.success)
+        skipped = sum(1 for r in self.results if not r.success and r.action == "__skipped__")
+        lines = [f"Stack: {ok}/{total} pasos completados ({skipped} omitidos)"]
+        for i, (step, result) in enumerate(zip(self.steps, self.results, strict=False)):
+            if result.action == "__skipped__":
+                status = "SKIP"
+            else:
+                status = "OK" if result.success else "FAIL"
+            lines.append(f"  [{i}] {step.agent}.{step.action} → {status}: {result.message}")
+            if result.warnings:
+                for w in result.warnings:
+                    lines.append(f"       ⚠ {w}")
+        if self.failed_at is not None:
+            lines.append(f"  Detenido en paso {self.failed_at}")
+        return "\n".join(lines)
+
+
+class GStack:
+    """
+    Pila de operaciones que se ejecutan secuencialmente con branching condicional.
+
+    Parámetros
+    ----------
+    auto_commit : bool
+        Si True, hace `git add -A && git commit` entre cada paso. **Requiere
+        autorización**: sin `confirm=True` (o `HARNESS_ASSUME_YES=1`) el commit
+        no se hace y queda anotado en el log de eventos. Un pipeline que
+        escribe en el historial de git sin que nadie lo haya pedido es
+        exactamente lo que la puerta de permisos existe para impedir, y este
+        camino no pasa por `BaseAgent.run` porque usa `GitTool` directamente.
+    commit_on_error : bool
+        Si True y un paso falla, hace commit de lo acumulado antes de
+        detenerse. Sujeto a la misma autorización.
+    confirm : bool
+        Autoriza los commits automáticos de esta stack.
+    log_events : bool
+        Si True, escribe cada acción a ``agents/workspace/events.jsonl``.
+    """
+
+    def __init__(self, auto_commit: bool = False, commit_on_error: bool = True, log_events: bool = True,
+                 context=None, confirm: bool = False):
+        self._steps: list[StackStep] = []
+        self.auto_commit = auto_commit
+        self.commit_on_error = commit_on_error
+        self.confirm = confirm
+        self.log_events = log_events
+        self._ctx = context or get_context()
+        self._orch = Orchestrator(context=self._ctx)
+
+    def push(self, agent: str, action: str, **kwargs) -> GStack:
+        """
+        Añade un paso al final de la stack.
+
+        kwargs especiales (no se pasan al agente):
+            auto_commit_message : str — sobreescribe el mensaje de commit auto
+            result_key          : str — nombre para referenciar el resultado en pasos siguientes
+            run_if              : callable — ``run_if=lambda results, result_map: results[-1].success``
+        """
+        msg = kwargs.pop("auto_commit_message", None)
+        rkey = kwargs.pop("result_key", None)
+        predicate = kwargs.pop("run_if", None)
+        self._steps.append(StackStep(
+            agent=agent, action=action, kwargs=kwargs,
+            auto_commit_message=msg, result_key=rkey, run_if=predicate,
+        ))
+        return self
+
+    def insert(self, index: int, agent: str, action: str, **kwargs) -> GStack:
+        """Inserta un paso en una posición concreta."""
+        msg = kwargs.pop("auto_commit_message", None)
+        rkey = kwargs.pop("result_key", None)
+        predicate = kwargs.pop("run_if", None)
+        self._steps.insert(index, StackStep(
+            agent=agent, action=action, kwargs=kwargs,
+            auto_commit_message=msg, result_key=rkey, run_if=predicate,
+        ))
+        return self
+
+    def run(self) -> StackResult:
+        if not self._steps:
+            return StackResult(success=True, steps=[], results=[])
+
+        results: list[AgentResult] = []
+        result_map: dict[str, AgentResult] = {}
+
+        for i, step in enumerate(self._steps):
+            if step.run_if is not None and not step.run_if(results, result_map):
+                skipped = AgentResult(True, step.agent, "__skipped__", "Paso omitido por run_if", data=None)
+                results.append(skipped)
+                if step.result_key:
+                    result_map[step.result_key] = skipped
+                self._log_event(step, skipped, i)
+                continue
+
+            result = self._orch.run(step.agent, step.action, **step.kwargs)
+            results.append(result)
+            if step.result_key:
+                result_map[step.result_key] = result
+
+            self._log_event(step, result, i)
+
+            if not result.success:
+                if self.commit_on_error:
+                    self._commit_step(i, step, success=False)
+                return StackResult(
+                    success=False, steps=self._steps, results=results,
+                    failed_at=i,
+                )
+
+            if self.auto_commit:
+                self._commit_step(i, step, success=True)
+
+        return StackResult(success=True, steps=self._steps, results=results)
+
+    def _log_event(self, step: StackStep, result: AgentResult, index: int) -> None:
+        if not self.log_events:
+            return
+        try:
+            log_dir = self._ctx.agent_workspace("gstack")
+            log_path = log_dir / "events.jsonl"
+            entry = {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "index": index,
+                "agent": step.agent,
+                "action": step.action,
+                "success": result.success,
+                "message": result.message,
+                "warnings": result.warnings,
+            }
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
+    def _commit_step(self, index: int, step: StackStep, success: bool) -> None:
+        from agents import permissions
+
+        if not (self.confirm or permissions.puerta_desactivada()):
+            self._log_evento_suelto({
+                "index": index, "agent": step.agent, "action": step.action,
+                "event": "auto_commit_bloqueado",
+                "message": "auto-commit omitido: la stack no está autorizada "
+                           "(GStack(confirm=True) o HARNESS_ASSUME_YES=1)",
+            })
+            return
+        try:
+            from agents.tools.git_tool import GitTool
+            git = GitTool(repo_root=self._ctx.root)
+            if not git.is_repo():
+                return
+            changed = git.changed_files(staged=False)
+            if not changed:
+                return
+            for f in changed:
+                git.add(str(f))
+            if step.auto_commit_message:
+                msg = step.auto_commit_message
+            else:
+                prefix = "wip" if not success else step.action.replace("_", " ")
+                msg = f"{prefix}: auto-commit tras paso {index} ({step.agent}.{step.action})"
+            git.commit(msg)
+        except Exception:
+            pass
+
+    def _log_evento_suelto(self, entrada: dict) -> None:
+        """Anota en el log algo que no es el resultado de un paso."""
+        if not self.log_events:
+            return
+        try:
+            log_path = self._ctx.agent_workspace("gstack") / "events.jsonl"
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(
+                    {"timestamp": datetime.now(UTC).isoformat(), **entrada},
+                    ensure_ascii=False,
+                ) + "\n")
+        except Exception:  # noqa: BLE001 — el log nunca tumba la ejecución
+            pass
+
+    def to_mermaid(self, results: list[AgentResult] | None = None) -> str:
+        """
+        Vuelca la stack como diagrama Mermaid.
+
+        Una stack con `run_if` deja de leerse como una lista en cuanto tiene
+        más de tres pasos: hay ramas que se ejecutan y ramas que no, y el
+        `summary` de texto no enseña la forma, solo el resultado. Pegando esto
+        en el markdown de `harness/progress/` se ve el flujo — que es todo lo que el
+        «graph engineering» ofrece de verdad sobre una máquina de estados que
+        este proyecto ya tenía.
+
+        Con `results` (los de un `StackResult`) colorea lo ejecutado, lo
+        omitido y lo que falló.
+        """
+        estados = {}
+        if results:
+            for i, r in enumerate(results):
+                if r.action == "__skipped__":
+                    estados[i] = "omitido"
+                else:
+                    estados[i] = "ok" if r.success else "fallo"
+
+        lineas = ["flowchart TD", "    inicio([inicio])"]
+        previo = "inicio"
+        for i, step in enumerate(self._steps):
+            nodo = f"p{i}"
+            etiqueta = f"{step.agent}.{step.action}"
+            if step.run_if is not None:
+                etiqueta += " (condicional)"
+            lineas.append(f'    {nodo}["{etiqueta}"]')
+            flecha = "-.->" if step.run_if is not None else "-->"
+            lineas.append(f"    {previo} {flecha} {nodo}")
+            if step.auto_commit_message or self.auto_commit:
+                lineas.append(f"    {nodo} -.->|auto-commit| {nodo}")
+            previo = nodo
+
+        lineas.append(f"    {previo} --> fin([fin])")
+        for i, estado in estados.items():
+            lineas.append(f"    class p{i} {estado}")
+        if estados:
+            lineas += [
+                "    classDef ok fill:#d7f5dd,stroke:#2f9e44",
+                "    classDef fallo fill:#ffe3e3,stroke:#e03131",
+                "    classDef omitido fill:#f1f3f5,stroke:#adb5bd,stroke-dasharray:4",
+            ]
+        return "\n".join(lineas)
+
+    @property
+    def event_log_path(self) -> Path | None:
+        """Ruta al archivo de eventos, o None si log_events=False."""
+        if not self.log_events:
+            return None
+        return self._ctx.agent_workspace("gstack") / "events.jsonl"
+
+    def __len__(self) -> int:
+        return len(self._steps)
+
+    def __bool__(self) -> bool:
+        return len(self._steps) > 0
