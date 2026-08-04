@@ -8,6 +8,12 @@ añade aquí una entrada por cada feature cerrada del arnés.
 
 ---
 
+## [Unreleased] — 2026-08-04
+
+### Añadido
+
+- protege app.__main__ para que importar el paquete no ejecute la CLI (FIX-001)
+
 ## [0.1.0] — 2026-08-04
 
 ### Añadido

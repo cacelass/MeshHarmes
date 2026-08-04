@@ -1,7 +1,7 @@
 # MeshHarmes
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.1.0-green)
+![Version](https://img.shields.io/badge/Version-0.1.1-green)
 ![Author](https://img.shields.io/badge/Author-cacelass-blueviolet)
 
 > Arnés de agentes e infraestructura de proyecto para trabajo general en Python.

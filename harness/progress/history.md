@@ -181,3 +181,23 @@ $ vault/05_AGENTES/BootstrapAgent.md presente con el contrato inline (generado p
 ```
 
 </details>
+
+## FIX-001 — app.__main__ rompe los imports: falta la guarda __name__
+
+- **Cerrada:** 2026-08-04
+- **Verificación:** ./init.sh en verde · 7 passed in 0.13s
+- **Cambios:** app/__main__.py (guarda if __name__ == '__main__'); tests/test_main_import.py (nuevo: test de regresion que importa app.__main__ y barre el paquete)
+- **Decisiones:** El test importa app.__main__ a nivel de modulo: si la guarda regresa, pytest muere en coleccion con SystemExit(2) y no solo falla un caso. Diagnosticado el alcance: pkgutil.walk_packages(app.__path__) importa app.__main__, por eso barrer el paquete mataba el proceso.
+- **Pendiente:** _(nada)_
+
+<details><summary>Evidencia</summary>
+
+```
+$ uv run python -c "import app.__main__; print('ok')"  ->  ok, EXIT=0 (sin usage)
+$ uv run python -m pytest tests/ -q --no-header        ->  7 passed in 0.40s
+$ uv run python -m app hello                           ->  Hola, mundo. EXIT=0
+$ make check                                           ->  check pasado: lint + typecheck + test + arnes OK
+$ ./init.sh                                            ->  ENTORNO LISTO  0 aviso(s)
+```
+
+</details>
