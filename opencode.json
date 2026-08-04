@@ -1,7 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "opencode/deepseek-v4-flash-free",
-  "$comment": "Los servidores MCP van en el bloque 'mcp' de este fichero (opencode) y en .mcp.json (Claude Code). Los dos vienen vacíos a propósito: arrancar un servidor MCP ejecuta código de terceros con tus permisos. Si añades uno, añádelo en los dos sitios.",
   "agent": {
     "lider": {
       "description": "Punto de entrada del arnés: init.sh → progress → featureslist → delegar → verificar → done. No escribe código; orquesta subagentes con contexto mínimo y delega el trabajo determinista en los agentes Python.",
