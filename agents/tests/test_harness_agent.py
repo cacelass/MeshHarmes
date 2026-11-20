@@ -201,20 +201,22 @@ def test_finish_rechaza_sin_evidencia(harness):
 def test_finish_cierra_y_escribe_historial(harness):
     _write_gate(harness.ctx.root, GATE_OK)
     harness.start(id="A-001")
-    result = harness.finish(id="A-001", evidence="3 passed en 0.4s", changes="src/x.py")
+    harness.record(agent="reviewer", id="A-001", content="Certeza: 0.9\nVeredicto: aprobado", verdict="aprobado")
+    result = harness.finish(id="A-001", evidence="3 passed, 0 failed in 0.42s", changes="src/x.py", decisions="Impacto: no aplica (test)")
     assert result.success
     doc = json.loads((harness.ctx.root / "harness" / "featureslist.json").read_text())
     assert doc["features"][0]["status"] == "done"
     history = (harness.ctx.root / "harness" / "progress" / "history.md").read_text()
     assert "A-001" in history
-    assert "3 passed en 0.4s" in history
+    assert "3 passed, 0 failed in 0.42s" in history
     assert "src/x.py" in history
 
 
 def test_finish_deja_current_en_idle(harness):
     _write_gate(harness.ctx.root, GATE_OK)
     harness.start(id="A-001")
-    harness.finish(id="A-001", evidence="ok")
+    harness.record(agent="reviewer", id="A-001", content="Certeza: 0.9\nVeredicto: aprobado", verdict="aprobado")
+    harness.finish(id="A-001", evidence="7 passed, 0 failed in 0.42s", decisions="Impacto: no aplica (test)")
     current = (harness.ctx.root / "harness" / "progress" / "current.md").read_text()
     assert "idle" in current
     assert "A-001" not in current
@@ -223,7 +225,8 @@ def test_finish_deja_current_en_idle(harness):
 def test_finish_desbloquea_la_dependiente(harness):
     _write_gate(harness.ctx.root, GATE_OK)
     harness.start(id="A-001")
-    harness.finish(id="A-001", evidence="ok")
+    harness.record(agent="reviewer", id="A-001", content="Certeza: 0.9\nVeredicto: aprobado", verdict="aprobado")
+    harness.finish(id="A-001", evidence="7 passed, 0 failed in 0.42s", decisions="Impacto: no aplica (test)")
     result = harness.next()
     assert result.success
     assert result.data["id"] == "B-001"
@@ -232,8 +235,8 @@ def test_finish_desbloquea_la_dependiente(harness):
 def test_finish_de_algo_ya_cerrado_falla(harness):
     _write_gate(harness.ctx.root, GATE_OK)
     harness.start(id="A-001")
-    harness.finish(id="A-001", evidence="ok")
-    assert not harness.finish(id="A-001", evidence="ok").success
+    harness.finish(id="A-001", evidence="7 passed, 0 failed in 0.42s")
+    assert not harness.finish(id="A-001", evidence="7 passed, 0 failed in 0.42s").success
 
 
 # -- bloquear y registrar -----------------------------------------------------

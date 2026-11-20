@@ -1,0 +1,14 @@
+"""Importar el paquete {{ project_slug }} no ejecuta la CLI ni mata el proceso (FIX-001)."""
+
+from __future__ import annotations
+
+import pkgutil
+
+import {{ project_slug }}
+import {{ project_slug }}.__main__  # noqa: F401 — regresión: importar no debe ejecutar la CLI
+
+
+def test_walk_packages_sobre_{{ project_slug }}_no_mata_el_proceso() -> None:
+    modulos = [m.name for m in pkgutil.walk_packages({{ project_slug }}.__path__, prefix="{{ project_slug }}.")]
+    assert "{{ project_slug }}.__main__" in modulos
+    assert "{{ project_slug }}.cli" in modulos

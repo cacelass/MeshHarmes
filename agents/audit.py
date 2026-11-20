@@ -58,6 +58,8 @@ def record(
     warnings: int = 0,
     kwarg_names: list[str] | None = None,
     error: str | None = None,
+    certainty: float | None = None,
+    confirmed: bool | None = None,
 ) -> None:
     """
     Añade una entrada al log. Nunca lanza: la auditoría no rompe lo auditado.
@@ -84,6 +86,10 @@ def record(
         }
         if error:
             entry["error"] = error[:300]
+        if certainty is not None:
+            entry["certainty"] = round(min(max(certainty, 0.0), 1.0), 3)
+        if confirmed is not None:
+            entry["confirmed"] = bool(confirmed)
         with open(audit_log_path(ctx), "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:  # noqa: BLE001 — ver docstring del módulo

@@ -1,0 +1,21 @@
+# project.yml — configuración del proyecto que leen los agentes.
+#
+# Formato: pares `clave: valor` de una sola línea, sin anidamiento. Lo parsea
+# `agents/config.py` sin PyYAML a propósito, para que el arnés funcione en un
+# repo recién clonado antes de instalar nada.
+#
+# Si renombras el paquete, `project_slug` es lo que hay que cambiar aquí.
+
+project_name: {{ project_name }}
+project_slug: {{ project_slug }}
+project_author_name: {{ project_author_name }}
+project_description: {{ project_description }}
+project_version: {{ project_version }}
+# La versión del .venv. uv la resuelve desde requires-python en pyproject.toml.
+python_version: {{ python_version }}
+
+# Capacidades: los agentes las consultan para no ofrecer acciones sobre
+# infraestructura que este proyecto no tiene.
+use_api: false
+use_docker: false
+use_cli: true

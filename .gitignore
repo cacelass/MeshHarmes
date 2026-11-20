@@ -72,6 +72,7 @@ logs/
 .env
 .env.*
 !.env.example
+!.env.example.tmpl
 *.pem
 *.key
 secrets/

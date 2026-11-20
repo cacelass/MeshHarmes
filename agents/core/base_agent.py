@@ -49,6 +49,29 @@ def _fold(text: str) -> str:
     return folded.replace("\0", "ñ")
 
 
+# Conjugaciones frecuentes -> forma canónica que declaran las capabilities.
+_CONJUGACIONES: dict[str, str] = {
+    "commitea": "commit", "commitean": "commit", "commitear": "commit",
+    "revisa": "revisar", "revisas": "revisar", "revisan": "revisar",
+    "revisando": "revisar", "reviso": "revisar",
+    "actualiza": "actualizar", "actualizas": "actualizar", "actualizan": "actualizar",
+    "ejecuta": "ejecutar", "ejecutas": "ejecutar", "ejecutan": "ejecutar",
+    "genera": "generar", "generas": "generar", "generan": "generar",
+    "indexa": "indexar", "indexas": "indexar", "indexan": "indexar",
+    "navega": "navegar", "navegas": "navegar", "navegan": "navegar",
+    "sincroniza": "sincronizar", "sincronizas": "sincronizar", "sincronizan": "sincronizar",
+    "refactoriza": "refactorizar", "refactorizas": "refactorizar",
+    "corre": "correr", "corren": "correr",
+    "cierra": "cerrar", "cierras": "cerrar", "cierran": "cerrar",
+    "compara": "comparar", "compite": "competir",
+    "planea": "planificar", "planifica": "planificar",
+}
+
+
+def _expandir_conjugacion(text: str) -> str:
+    return " ".join(_CONJUGACIONES.get(w, w) for w in text.split())
+
+
 @dataclass
 class AgentResult:
     """Resultado uniforme que devuelve cualquier acción de cualquier agente."""
@@ -65,6 +88,10 @@ class AgentResult:
     # información" del sistema (lo usa PlanAgent, y cualquier agente puede
     # usarlo igual).
     needs: list[str] = field(default_factory=list)
+    # Certeza (μ.cert) del resultado, 0..1. Opcional: cuánta confianza tiene
+    # quien ejecuta la acción de que el resultado está bien. Lo usa el arnés
+    # para decidir si una feature se puede cerrar (GATE-4).
+    certainty: float | None = None
 
     def __bool__(self) -> bool:
         return self.success
@@ -162,11 +189,18 @@ class BaseAgent(ABC):
         # sitio para una credencial (ver agents/redaction.py).
         redaction.redactar_resultado(result)
 
+        aprobada_por_humano = (
+            not permissions.puerta_desactivada()
+            and confirmado
+            and action in permissions.acciones_destructivas(self.name)
+        )
         audit.record(
             self.ctx, agent=self.name, action=action, success=result.success,
             duration_ms=(time.perf_counter() - start) * 1000,
             message=result.message, warnings=len(result.warnings),
             kwarg_names=sorted(kwargs),
+            certainty=getattr(result, "certainty", None),
+            confirmed=aprobada_por_humano,
         )
         return result
 
@@ -199,6 +233,11 @@ class BaseAgent(ABC):
             return 0.0
         text = _fold(query)
         matched = [kw for kw in self.capabilities if re.search(rf"\b{re.escape(_fold(kw))}\b", text)]
+        if not matched:
+            # Recall: la consulta llega conjugada y la capability en infinitivo.
+            expandida = _expandir_conjugacion(text)
+            if expandida != text:
+                matched = [kw for kw in self.capabilities if re.search(rf"\b{re.escape(_fold(kw))}\b", expandida)]
         if not matched:
             return 0.0
         # Cada acierto vale por las PALABRAS que cubre, no por ser un acierto.

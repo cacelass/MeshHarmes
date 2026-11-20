@@ -15,6 +15,7 @@ forma de saltársela pidiéndoselo amablemente al modelo.
 from __future__ import annotations
 
 import json
+import os
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,7 @@ from agents.core.base_agent import AgentResult, BaseAgent
 from agents.core.registry import register_agent
 from agents.tools.process_tool import run_command
 
-VALID_STATUS = ("pending", "in_progress", "done", "blocked")
+VALID_STATUS = ("pending", "spec_ready", "in_progress", "done", "blocked")
 REQUIRED_FIELDS = ("id", "title", "description", "acceptance_criteria", "status")
 
 #: Rechazos seguidos del reviewer antes de bloquear la feature y escalar.
@@ -171,15 +172,44 @@ class HarnessAgent(BaseAgent):
         return None
 
     @staticmethod
+    @staticmethod
+    def _peso_dependientes(doc: dict) -> dict[str, int]:
+        """Cuántas features dependen (transitivamente) de cada una."""
+        dependientes: dict[str, set[str]] = {}
+        for feat in doc.get("features", []):
+            if not isinstance(feat, dict):
+                continue
+            fid = feat.get("id")
+            if not fid:
+                continue
+            dependientes.setdefault(fid, set())
+            for dep in feat.get("depends_on", []) or []:
+                dependientes.setdefault(dep, set()).add(fid)
+        peso: dict[str, int] = {}
+        for fid in dependientes:
+            vistos: set[str] = set()
+            pila = list(dependientes[fid])
+            while pila:
+                actual = pila.pop()
+                if actual in vistos:
+                    continue
+                vistos.add(actual)
+                pila.extend(dependientes.get(actual, ()))
+            peso[fid] = len(vistos)
+        return peso
+
+    @staticmethod
     def _eligible(doc: dict) -> list[dict]:
-        """Pendientes cuyas dependencias están todas en done, en orden de backlog."""
+        """Pendientes cuyas dependencias están todas en done, por prioridad de desbloqueo."""
         done = {f["id"] for f in doc["features"] if f.get("status") == "done"}
-        return [
+        candidatos = [
             f
             for f in doc["features"]
             if f.get("status") == "pending"
             and all(dep in done for dep in f.get("depends_on", []))
         ]
+        peso = HarnessAgent._peso_dependientes(doc)
+        return sorted(candidatos, key=lambda f: -peso.get(f.get("id", ""), 0))
 
     def _fail(self, action: str, message: str, **kw: Any) -> AgentResult:
         return AgentResult(success=False, agent=self.name, action=action, message=message, **kw)
@@ -263,6 +293,52 @@ class HarnessAgent(BaseAgent):
             success=True, agent=self.name, action="next",
             message=f"Siguiente: {feat['id']} — {feat['title']}",
             data={**feat, "antecedentes": self._antecedentes(feat)},
+        )
+
+    def _ultimo_veredicto_reviewer(self, feature_id: str) -> str | None:
+        path = self._progress_dir / f"reviewer-{feature_id}.md"
+        if not path.exists():
+            return None
+        try:
+            texto = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        import re
+        match = re.search(r"Veredicto:\*{0,2}\s*([^\n]+)", texto)
+        if not match:
+            return None
+        return match.group(1).strip()
+
+    def _ultima_certeza_reviewer(self, feature_id: str) -> float | None:
+        path = self._progress_dir / f"reviewer-{feature_id}.md"
+        if not path.exists():
+            return None
+        try:
+            texto = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        import re
+        match = re.search(r"Certeza:\*{0,2}\s*(\d+(?:\.\d+)?)", texto)
+        if not match:
+            return None
+        try:
+            valor = float(match.group(1))
+        except ValueError:
+            return None
+        return min(max(valor, 0.0), 1.0)
+
+    @staticmethod
+    def _impacto_declarado(decisions: str) -> bool:
+        text = (decisions or "").lower()
+        if "impacto" not in text:
+            return False
+        return any(
+            token in text
+            for token in (
+                "mejora", "aporta", "empeora", "neutro", "no aplica",
+                "no medible", "sin impacto", "formula", "fórmula", "backtest",
+                "calidad", "operativ",
+            )
         )
 
     def _antecedentes(self, feat: dict) -> list[dict]:
@@ -359,6 +435,35 @@ class HarnessAgent(BaseAgent):
             data={"id": id, "criteria": feat.get("acceptance_criteria", [])},
         )
 
+    def _gate_timeout(self) -> int:
+        """Timeout de la puerta en segundos (default 1200, override HARNESS_GATE_TIMEOUT)."""
+        raw = os.environ.get("HARNESS_GATE_TIMEOUT", "").strip()
+        if not raw:
+            return 1200
+        try:
+            return max(60, int(float(raw)))
+        except ValueError:
+            return 1200
+
+    def _rag_staleness_warning(self) -> str:
+        """Aviso si el índice RAG está desfasado (OPS-011). Nunca bloquea."""
+        try:
+            from agents.tools.rag_tool import RagTool
+
+            if not RagTool.available():
+                return ""
+            status = RagTool.status(self.ctx.root)
+            if not status.get("available") or status.get("up_to_date", True):
+                return ""
+            n = (
+                len(status.get("stale_files", []))
+                + len(status.get("new_files", []))
+                + len(status.get("deleted_files", []))
+            )
+            return f"RAG desfasado: {n} fichero(s). Ejecuta `make index-rag`."
+        except Exception:  # noqa: BLE001
+            return ""
+
     def gate(self, *, quick: bool = False) -> AgentResult:
         """Ejecuta ./init.sh y devuelve el veredicto estructurado."""
         script = self.ctx.root / "init.sh"
@@ -368,7 +473,7 @@ class HarnessAgent(BaseAgent):
         args = ["bash", str(script), "--json"]
         if quick:
             args.append("--quick")
-        proc = run_command(args, cwd=self.ctx.root, timeout=900)
+        proc = run_command(args, cwd=self.ctx.root, timeout=self._gate_timeout())
 
         try:
             report = json.loads(proc.stdout)
@@ -380,6 +485,14 @@ class HarnessAgent(BaseAgent):
             )
 
         failed = [c for c in report.get("checks", []) if c.get("status") == "fail"]
+        warnings = [f"{c['check']}: {c['detail']}" for c in failed]
+        rag_warning = self._rag_staleness_warning()
+        if rag_warning:
+            report.setdefault("checks", []).append(
+                {"status": "warn", "check": "rag", "detail": rag_warning}
+            )
+            warnings.append(rag_warning)
+
         return AgentResult(
             success=bool(report.get("ready")),
             agent=self.name,
@@ -390,8 +503,16 @@ class HarnessAgent(BaseAgent):
                 else f"ENTORNO BLOQUEADO — {len(failed)} check(s) fallando."
             ),
             data=report,
-            warnings=[f"{c['check']}: {c['detail']}" for c in failed],
+            warnings=warnings,
         )
+
+    @staticmethod
+    def _evidencia_plausible(evidence: str) -> bool:
+        '''¿Esto parece la salida literal de un comando, o una afirmación?'''
+        texto = evidence.strip()
+        if len(texto) < 24:
+            return False
+        return len(texto.split()) >= 3
 
     def finish(self, *, id: str = "", evidence: str = "", changes: str = "",
                decisions: str = "", pending: str = "") -> AgentResult:
@@ -429,6 +550,61 @@ class HarnessAgent(BaseAgent):
                 needs=[
                     "Pega la salida real del comando que demuestra cada criterio "
                     "(pytest, make check, ./init.sh). Una afirmación no es evidencia."
+                ],
+            )
+
+        if not self._evidencia_plausible(evidence):
+            return self._fail(
+                "finish",
+                f"'{id}' no se cierra: la evidencia no parece la salida de un comando.",
+                needs=[
+                    "Pega la salida LITERAL del comando (mín. 3 palabras / 24 caracteres). "
+                    "'ok' o 'pasa' es una afirmación, no evidencia."
+                ],
+            )
+
+        # GATE-3: veredicto del reviewer
+        ultimo_veredicto = self._ultimo_veredicto_reviewer(id)
+        if ultimo_veredicto is None:
+            return self._fail(
+                "finish",
+                f"'{id}' no se cierra sin informe de reviewer (GATE-3).",
+                needs=[
+                    f"Lanza el reviewer y registra su informe con "
+                    f"`harness record --agent reviewer --id {id} --verdict aprobado`. "
+                    f"Sin revisión no hay cierre."
+                ],
+            )
+        if ultimo_veredicto.strip().lower() in ("rechazado", "rechaza", "rejected", "fail", "ko"):
+            return self._fail(
+                "finish",
+                f"'{id}' no se cierra: el último veredicto del reviewer es rechazo (GATE-3).",
+                needs=[
+                    f"Reabre el bucle implementer ↔ reviewer: lee "
+                    f"harness/progress/reviewer-{id}.md y corrige."
+                ],
+            )
+
+        # GATE-4: certeza
+        certainty = self._ultima_certeza_reviewer(id)
+        if certainty is not None and certainty < 0.6:
+            return self._fail(
+                "finish",
+                f"'{id}' no se cierra: certeza {certainty:.2f} por debajo del umbral (0.6) (GATE-4).",
+                needs=[
+                    f"Revisa harness/progress/reviewer-{id}.md: ¿qué le falta para avalar? "
+                    f"Se reabre el bucle implementer ↔ reviewer."
+                ],
+            )
+
+        # GATE-5: impacto
+        if not self._impacto_declarado(decisions):
+            return self._fail(
+                "finish",
+                f"'{id}' no se cierra: falta declarar el impacto (GATE-5).",
+                needs=[
+                    "Añade a --decisions una frase con 'Impacto:' y el resultado "
+                    "medido, o 'Impacto: no aplica' con la razón."
                 ],
             )
 
@@ -482,6 +658,9 @@ class HarnessAgent(BaseAgent):
 
         feat["status"] = "blocked"
         feat["blocked_reason"] = reason
+        # Al bloquear se liberan los ficheros reclamados: otra feature puede
+        # tomar el relevo sin esperar a que se desbloquee esta.
+        feat["touched_files"] = []
         self._save(doc)
         return AgentResult(
             success=True, agent=self.name, action="block",
@@ -489,8 +668,207 @@ class HarnessAgent(BaseAgent):
             data={"id": id, "reason": reason},
         )
 
+    @property
+    def _features_dir(self) -> "Path":
+        return self.ctx.root / "features"
+
+    @staticmethod
+    def validate_gherkin(text: str) -> list[str]:
+        import re
+        problems: list[str] = []
+        if "Feature:" not in text:
+            problems.append("falta 'Feature:'")
+        scenarios = re.findall(r"(?m)^\s*Scenario:.*$", text)
+        if not scenarios:
+            problems.append("no hay ningún 'Scenario:'")
+        steps = re.findall(r"(?m)^\s+(Given|When|Then|And|But)\b", text)
+        if scenarios and not steps:
+            problems.append("ningún escenario tiene pasos Given/When/Then")
+        return problems
+
+    def _draft_feature(self, feat: dict) -> str:
+        lines = [f"Feature: {feat.get('title', feat.get('id', ''))}", ""]
+        for i, criterion in enumerate(feat.get("acceptance_criteria", []), start=1):
+            lines += [
+                f"  Scenario: S{i} — {criterion}",
+                "    Given el sistema en su estado inicial",
+                "    When se ejecuta el comportamiento de esta feature",
+                f"    Then {criterion}",
+                "",
+            ]
+        return "\n".join(lines)
+
+    def write_feature(self, *, id: str = "", content: str = "") -> AgentResult:
+        if not id:
+            return self._fail("write_feature", "Falta el id de la feature.",
+                              needs=["¿Qué feature documento? Usa el id de featureslist.json."])
+        doc, error = self._load()
+        if doc is None:
+            return self._fail("write_feature", error)
+        feat = self._find(doc, id)
+        if feat is None:
+            return self._fail("write_feature", f"No existe la feature '{id}' en el backlog.")
+        if feat.get("status") == "done":
+            return self._fail("write_feature", f"'{id}' ya está cerrada.")
+
+        gherkin = content.strip() if content.strip() else self._draft_feature(feat)
+        problems = self.validate_gherkin(gherkin)
+        if problems:
+            return self._fail("write_feature", f"El Gherkin no es válido: {'; '.join(problems)}.")
+
+        self._features_dir.mkdir(parents=True, exist_ok=True)
+        path = self._features_dir / f"{id}.feature"
+        path.write_text(gherkin.rstrip() + "\n", encoding="utf-8")
+        feat["status"] = "spec_ready"
+        self._save(doc)
+
+        return AgentResult(
+            success=True, agent=self.name, action="write_feature",
+            message=f"Contrato Gherkin escrito en features/{id}.feature (→ spec_ready).",
+            data={"path": str(path.relative_to(self.ctx.root)),
+                  "scenarios": gherkin.count("Scenario:"),
+                  "draft": not bool(content.strip())},
+            warnings=(
+                ["Borrador generado desde acceptance_criteria: revisa los escenarios."]
+                if not content.strip() else []
+            ),
+        )
+
+    def approve(self, *, id: str = "", owner: str = "implementer") -> AgentResult:
+        if not id:
+            return self._fail("approve", "Falta el id de la feature.",
+                              needs=["¿Qué feature apruebas? Usa el id de featureslist.json."])
+        doc, error = self._load()
+        if doc is None:
+            return self._fail("approve", error)
+        feat = self._find(doc, id)
+        if feat is None:
+            return self._fail("approve", f"No existe la feature '{id}' en el backlog.")
+        if feat.get("status") != "spec_ready":
+            return self._fail(
+                "approve",
+                f"'{id}' no está en spec_ready (está en '{feat.get('status')}'). "
+                f"Escribe primero el contrato con `harness write_feature`.",
+            )
+        feature_file = self._features_dir / f"{id}.feature"
+        if not feature_file.exists():
+            return self._fail("approve", f"No existe features/{id}.feature — ejecuta `harness write_feature` primero.")
+
+        feat["status"] = "in_progress"
+        feat["touched_files"] = []
+        self._save(doc)
+
+        self._current_file.parent.mkdir(parents=True, exist_ok=True)
+        # reuse current.md write minimal
+        try:
+            from datetime import date as _d
+            criteria_text = "\n".join(f"- [ ] {c}" for c in feat.get("acceptance_criteria", [])) or "_(sin criterios)_"
+            self._current_file.write_text(
+                f"# Tarea actual\n\n**Feature:** {id}\n**Estado:** in_progress\n",
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+        return AgentResult(
+            success=True, agent=self.name, action="approve",
+            message=f"Spec de {id} aprobada e in_progress. Implementa contra features/{id}.feature.",
+            data={"id": id, "path": str(feature_file.relative_to(self.ctx.root))},
+        )
+
+    def claim(self, *, id: str = "", files: str = "") -> AgentResult:
+        if not id or not files:
+            missing = []
+            if not id:
+                missing.append("¿Qué feature reclama ficheros? (id de featureslist.json)")
+            if not files:
+                missing.append("¿Qué ficheros tocará? Sepáralos con ';'.")
+            return self._fail("claim", "Faltan datos para reclamar.", needs=missing)
+
+        doc, error = self._load()
+        if doc is None:
+            return self._fail("claim", error)
+
+        feat = self._find(doc, id)
+        if feat is None:
+            return self._fail("claim", f"No existe la feature '{id}' en el backlog.")
+        if feat.get("status") != "in_progress":
+            return self._fail(
+                "claim",
+                f"'{id}' no está in_progress (está en '{feat.get('status')}'). "
+                f"Abre la feature con `harness start` antes de reclamar ficheros.",
+            )
+
+        reclamados = [f.strip() for f in files.split(";") if f.strip()]
+        if not reclamados:
+            return self._fail("claim", "La lista de ficheros va vacía.",
+                              needs=["Pasa al menos un fichero en --files, separados por ';'."])
+
+        conflictos = []
+        for otra in doc["features"]:
+            if not isinstance(otra, dict) or otra.get("id") == id:
+                continue
+            if otra.get("status") in ("done", "blocked"):
+                continue
+            choque = [f for f in reclamados if f in set(otra.get("touched_files", []))]
+            if choque:
+                conflictos.append(f"{otra.get('id')} → {', '.join(choque)}")
+
+        if conflictos:
+            return self._fail(
+                "claim",
+                f"No se reclama para '{id}': {', '.join(conflictos)}",
+                data={"conflictos": conflictos},
+                needs=[
+                    f"Elige otra feature o coordina: {', '.join(c.split(' → ')[0] for c in conflictos)} "
+                    f"ya toca esos ficheros."
+                ],
+            )
+
+        reclamados_previos = feat.setdefault("touched_files", [])
+        for f in reclamados:
+            if f not in reclamados_previos:
+                reclamados_previos.append(f)
+        self._save(doc)
+
+        return AgentResult(
+            success=True, agent=self.name, action="claim",
+            message=f"{id} reclama {len(reclamados_previos)} fichero(s): {', '.join(reclamados_previos)}.",
+            data={"id": id, "touched_files": reclamados_previos},
+        )
+
+    def release(self, *, id: str = "") -> AgentResult:
+        if not id:
+            return self._fail("release", "Falta el id de la feature.",
+                              needs=["¿Qué feature libera sus ficheros? Usa su id de featureslist.json."])
+
+        doc, error = self._load()
+        if doc is None:
+            return self._fail("release", error)
+
+        feat = self._find(doc, id)
+        if feat is None:
+            return self._fail("release", f"No existe la feature '{id}' en el backlog.")
+
+        previos = list(feat.get("touched_files", []))
+        if not previos:
+            return AgentResult(
+                success=True, agent=self.name, action="release",
+                message=f"{id} no tenía ficheros reclamados.",
+                data={"id": id, "touched_files": []},
+            )
+
+        feat["touched_files"] = []
+        self._save(doc)
+        return AgentResult(
+            success=True, agent=self.name, action="release",
+            message=f"{id} liberó {len(previos)} fichero(s): {', '.join(previos)}.",
+            data={"id": id, "released": previos, "touched_files": []},
+        )
+
     def record(self, *, agent: str = "", id: str = "", content: str = "",
-               verdict: str = "ok") -> AgentResult:
+               verdict: str = "ok", certainty: float | None = None,
+               packet: str = "") -> AgentResult:
         """Guarda el informe de un subagente en harness/progress/<agente>-<ID>.md."""
         if not agent or not id or not content:
             missing = []
@@ -507,8 +885,19 @@ class HarnessAgent(BaseAgent):
         header = (
             f"# {agent} · {id}\n\n"
             f"- **Fecha:** {date.today().isoformat()}\n"
-            f"- **Veredicto:** {verdict}\n\n"
+            f"- **Veredicto:** {verdict}\n"
         )
+        if certainty is not None:
+            header += f"- **Certeza:** {min(max(certainty, 0.0), 1.0):.2f}\n"
+        header += "\n"
+        if packet:
+            import json, re
+            try:
+                doc = json.loads(packet)
+            except json.JSONDecodeError:
+                return self._fail("record", f"packet no es JSON válido: {packet[:80]}",
+                                  needs=["Envía el packet como JSON §1, o usa solo --content."])
+            header += f"<!-- §1: {json.dumps(doc, ensure_ascii=False)} -->\n\n"
         path.write_text(header + content.strip() + "\n", encoding="utf-8")
 
         # El bucle implementer <-> reviewer es un patrón evaluador-optimizador,

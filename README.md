@@ -181,3 +181,20 @@ uv run python -m agents run knowledge sync_agent_cards --dry_run false --yes
 3. Vacía `harness/featureslist.json` y escribe tu propio backlog — o pídeselo
    al agente: `uv run python -m agents run harness add --id X-001 --title "..." --criteria "a;b"`.
 4. `make setup && make init`.
+
+---
+
+## Empezar un proyecto con Copier
+
+Este repo es también una plantilla [Copier](https://copier.readthedocs.io/):
+crea un proyecto nuevo sin borrar `.git` ni renombrar carpetas a mano.
+
+```bash
+copier copy /home/cancelas/Proyectos/MeshHarmes /ruta/al/nuevo-proyecto --defaults
+cd /ruta/al/nuevo-proyecto
+uv sync --extra dev
+./init.sh
+```
+
+Responde a las preguntas (o usa `--defaults` / `-d clave=valor`) para fijar
+nombre, paquete, autor, descripción, versión de Python y versión inicial.

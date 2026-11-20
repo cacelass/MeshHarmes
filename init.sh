@@ -97,13 +97,17 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 section "Arnés"
 
-# Un backlog duplicado es peor que no tener backlog: el agente escribe en una
-# copia mientras alguien lee la otra. Si aparecen ficheros del arnés sueltos en
-# la raíz, se para.
+# Migración del layout viejo (featureslist.json y progress/ en la raíz).
+# `copier update` trae los ficheros nuevos pero NO borra los viejos, así que
+# un proyecto actualizado se queda con las dos copias y el agente escribiendo
+# en una mientras alguien lee la otra. Eso no se avisa: se para, porque
+# trabajar sobre un backlog duplicado es peor que no trabajar.
 if [ -f "featureslist.json" ] || [ -d "progress" ]; then
-  fail "layout" "hay ficheros del arnés en la raíz junto a harness/. Quédate con una sola copia:"
-  printf '        git mv featureslist.json harness/featureslist.json\n'
+  fail "layout" "quedan ficheros del arnés en la raíz junto a harness/. Mueve lo tuyo y borra los viejos:"
+  printf '        git mv featureslist.json harness/featureslist.json   # si harness/ aún no lo tiene\n'
   printf '        git mv progress harness/progress\n'
+  printf '        git mv memory.md harness/memory.md\n'
+  printf '        # si harness/ ya trae los del template, quédate con TU version y borra la otra\n'
 fi
 
 for required in AGENTS.md harness/featureslist.json harness/progress/current.md harness/progress/history.md; do
@@ -134,7 +138,7 @@ if [ -n "$PY" ] && [ -f "harness/featureslist.json" ]; then
 import json
 import sys
 
-VALID_STATUS = ("pending", "in_progress", "done", "blocked")
+VALID_STATUS = ("pending", "spec_ready", "in_progress", "done", "blocked")
 REQUIRED = ("id", "title", "description", "acceptance_criteria", "status")
 
 try:
@@ -179,6 +183,10 @@ for feat in features:
         if dep not in seen:
             problems.append("%s: depends_on '%s' no existe en el backlog" % (feat.get("id"), dep))
 
+    touched = feat.get("touched_files")
+    if touched is not None and (not isinstance(touched, list) or not all(isinstance(f, str) and f for f in touched)):
+        problems.append("%s: touched_files debe ser una lista de rutas" % fid)
+
 for problem in problems:
     print("fail\t%s" % problem)
 
@@ -192,6 +200,14 @@ for feat in features:
 running = [f["id"] for f in features if f["status"] == "in_progress"]
 if len(running) > 1:
     print("warn\t%d features en in_progress a la vez: %s" % (len(running), ", ".join(running)))
+
+reclamados = {}
+for feat in features:
+    for f in feat.get("touched_files", []):
+        reclamados.setdefault(f, []).append(feat["id"])
+for f, ids in reclamados.items():
+    if len(ids) > 1:
+        print("warn\t%s reclamado por varias features: %s" % (f, ", ".join(ids)))
 
 print("ok\t%d features · %d pending · %d in_progress · %d done · %d blocked" % (
     len(features), counts["pending"], counts["in_progress"], counts["done"], counts["blocked"]))

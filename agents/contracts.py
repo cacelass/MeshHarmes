@@ -104,6 +104,10 @@ class Contract:
     # se niega a ejecutarlas sin autorización explícita — ver
     # `agents/permissions.py`.
     destructive: tuple[str, ...] = ()
+    # Acciones críticas: exigen confirmación por nombre del objetivo (friction
+    # ladder). Solo tiene efecto si `permissions` lo soporta; por ahora es
+    # documentación estructurada.
+    critical: tuple[str, ...] = ()
 
     def as_dict(self) -> dict:
         return {
@@ -114,6 +118,7 @@ class Contract:
             "owns": list(self.owns),
             "collaborates": list(self.collaborates),
             "destructive": list(self.destructive),
+            "critical": list(self.critical),
         }
 
 

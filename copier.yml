@@ -1,0 +1,69 @@
+# copier.yml — MeshHarmes template
+# Uso: copier copy <repo> <destino>
+
+_answers_file: .copier-answers.yml
+_templates_suffix: .tmpl
+
+# ─── Preguntas ────────────────────────────────────────────────────────────────
+project_name:
+  type: str
+  help: Nombre del proyecto
+  default: MeshHarmes
+
+project_slug:
+  type: str
+  help: Nombre del paquete Python (slug)
+  default: "{{ project_name | lower | replace(' ', '_') | replace('-', '_') }}"
+
+project_author_name:
+  type: str
+  help: Autor del proyecto
+  default: cacelass
+
+project_author_email:
+  type: str
+  help: Email del autor
+  default: ""
+
+project_description:
+  type: str
+  help: Descripción corta del proyecto
+  default: "Arnés de agentes e infraestructura de proyecto para trabajo general en Python."
+
+python_version:
+  type: str
+  help: Versión de Python
+  choices:
+    - "3.12"
+    - "3.13"
+  default: "3.12"
+
+project_version:
+  type: str
+  help: Versión inicial del proyecto
+  default: "0.1.0"
+
+# ─── Ficheros excluidos ───────────────────────────────────────────────────────
+_exclude:
+  - .git
+  - .venv
+  - __pycache__
+  - "*.pyc"
+  - .pytest_cache
+  - uv.lock
+  - agents/workspace/*
+  - node_modules
+  - .mypy_cache
+  - .ruff_cache
+
+# ─── Tareas post-copia ────────────────────────────────────────────────────────
+_tasks:
+  - "chmod +x init.sh"
+  - 'if [ "{{ project_slug }}" != "app" ]; then mv app "{{ project_slug }}"; fi'
+
+# ─── Mensaje final ────────────────────────────────────────────────────────────
+_message_after_copy: |
+  Proyecto creado. Siguientes pasos:
+    cd <destino>
+    uv sync --extra dev
+    ./init.sh

@@ -23,10 +23,18 @@ from typing import Any
 
 from agents.tools.registry import register_tool
 
+
 MEMORY_DIRNAME = "memory"
 DECAY_INTERVAL = 3600  # 1 hour in seconds
 DEFAULT_TTL = 86400 * 7  # 1 week
 MAX_ENTRIES = 500
+
+#: Alcance de una entrada de memoria. `per-proyecto` es el por defecto: el
+#: banco vive en `agents/workspace/memory/`, compartido por todos los agentes,
+#: así que un subagente hereda la memoria del agente que lo lanzó. `global`
+#: es para conocimiento que debe sobrevivir a cualquier proyecto.
+VALID_SCOPES: tuple[str, ...] = ("global", "per-proyecto")
+DEFAULT_SCOPE = "per-proyecto"
 
 
 @register_tool("memory")
@@ -40,14 +48,18 @@ class MemoryTool:
     # -- CRUD -----------------------------------------------------------------
 
     @staticmethod
-    def write(workspace_dir: str | Path, kind: str, key: str, value: Any, *, ttl: int | None = None) -> dict:
+    def write(workspace_dir: str | Path, kind: str, key: str, value: Any, *,
+              ttl: int | None = None, scope: str = DEFAULT_SCOPE) -> dict:
         kind = _normalize_kind(kind)
+        if scope not in VALID_SCOPES:
+            raise ValueError(f"Alcance inválido '{scope}' — usa global o per-proyecto.")
         bank = _load_bank(workspace_dir)
         _prune(bank)
         entry = {
             "kind": kind,
             "key": key,
             "value": value,
+            "scope": scope,
             "created_at": time.time(),
             "accessed_at": time.time(),
             "ttl": ttl if ttl is not None else DEFAULT_TTL,
@@ -58,6 +70,38 @@ class MemoryTool:
         bank[kind][key] = entry
         _save_bank(workspace_dir, bank)
         return entry
+
+    @staticmethod
+    def edit(workspace_dir: str | Path, key: str, *,
+             value: Any = None, scope: str | None = None, ttl: int | None = None) -> dict | None:
+        """Actualiza value/scope/ttl de una entrada por su key.
+
+        ``ttl <= 0`` invalida la entrada: se borra (ya no es utilizable, no
+        puede resucitar). Devuelve la entrada actualizada, o ``None`` si no
+        existía o quedó invalidada.
+        """
+        bank = _load_bank(workspace_dir)
+        for kind, entries in bank.items():
+            if not isinstance(entries, dict) or key not in entries:
+                continue
+            entry = entries[key]
+            if value is not None:
+                entry["value"] = value
+            if scope is not None:
+                if scope not in VALID_SCOPES:
+                    raise ValueError(f"Alcance inválido '{scope}' — usa global o per-proyecto.")
+                entry["scope"] = scope
+            if ttl is not None:
+                entry["ttl"] = ttl
+            entry["accessed_at"] = time.time()
+            entry["access_count"] += 1
+            if ttl is not None and ttl <= 0:
+                del entries[key]
+                _save_bank(workspace_dir, bank)
+                return None
+            _save_bank(workspace_dir, bank)
+            return dict(entry)
+        return None
 
     @staticmethod
     def read(workspace_dir: str | Path, kind: str, key: str) -> dict | None:
@@ -85,13 +129,16 @@ class MemoryTool:
         return False
 
     @staticmethod
-    def search(workspace_dir: str | Path, *, kind: str | None = None, query: str | None = None, limit: int = 20) -> list[dict]:
+    def search(workspace_dir: str | Path, *, kind: str | None = None, query: str | None = None,
+               scope: str | None = None, limit: int = 20) -> list[dict]:
         bank = _load_bank(workspace_dir)
         results = []
         kinds = [kind] if kind else list(bank)
         for k in kinds:
             for key, entry in bank.get(k, {}).items():
                 if _is_expired(entry):
+                    continue
+                if scope and entry.get("scope", DEFAULT_SCOPE) != scope:
                     continue
                 if query and query.lower() not in key.lower() and query.lower() not in str(entry.get("value", "")).lower():
                     continue
@@ -139,10 +186,10 @@ class MemoryTool:
         bank = _load_bank(workspace_dir)
         now = time.time()
         affected = 0
-        for _kind, entries in bank.items():
+        for kind, entries in bank.items():
             if not isinstance(entries, dict):
                 continue
-            for _key, entry in list(entries.items()):
+            for key, entry in list(entries.items()):
                 if entry["access_count"] < min_access and (now - entry["created_at"]) > DECAY_INTERVAL:
                     entry["ttl"] = max(300, int(entry["ttl"] * factor))
                     affected += 1
@@ -159,10 +206,10 @@ class MemoryTool:
         bank = _load_bank(workspace_dir)
         candidates: list[dict] = []
         now = time.time()
-        for _kind, entries in bank.items():
+        for kind, entries in bank.items():
             if not isinstance(entries, dict):
                 continue
-            for _key, entry in entries.items():
+            for key, entry in entries.items():
                 if _is_expired(entry):
                     continue
                 recency = (now - entry["accessed_at"]) / max(1, entry["ttl"])
@@ -237,7 +284,7 @@ def _is_expired(entry: dict) -> bool:
 
 def _prune(bank: dict) -> None:
     now = time.time()
-    for _kind, entries in bank.items():
+    for kind, entries in bank.items():
         if not isinstance(entries, dict):
             continue
         for key, entry in list(entries.items()):

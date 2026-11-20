@@ -1,0 +1,8 @@
+"""Permite `python -m {{ project_slug }}`."""
+
+import sys
+
+from {{ project_slug }}.cli import main
+
+if __name__ == "__main__":
+    sys.exit(main())
