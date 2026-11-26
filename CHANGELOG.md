@@ -8,6 +8,12 @@ añade aquí una entrada por cada feature cerrada del arnés.
 
 ---
 
+## [Unreleased] — 2026-11-26
+
+### Añadido
+
+- Guardrail automatizado + RAG brain + evals skills + mejoras harness (GUARD-001)
+
 ## [Unreleased] — 2026-08-04
 
 ### Añadido

@@ -23,7 +23,6 @@ from typing import Any
 
 from agents.tools.registry import register_tool
 
-
 MEMORY_DIRNAME = "memory"
 DECAY_INTERVAL = 3600  # 1 hour in seconds
 DEFAULT_TTL = 86400 * 7  # 1 week
@@ -81,7 +80,7 @@ class MemoryTool:
         existía o quedó invalidada.
         """
         bank = _load_bank(workspace_dir)
-        for kind, entries in bank.items():
+        for _kind, entries in bank.items():
             if not isinstance(entries, dict) or key not in entries:
                 continue
             entry = entries[key]
@@ -186,10 +185,10 @@ class MemoryTool:
         bank = _load_bank(workspace_dir)
         now = time.time()
         affected = 0
-        for kind, entries in bank.items():
+        for _kind, entries in bank.items():
             if not isinstance(entries, dict):
                 continue
-            for key, entry in list(entries.items()):
+            for _key, entry in list(entries.items()):
                 if entry["access_count"] < min_access and (now - entry["created_at"]) > DECAY_INTERVAL:
                     entry["ttl"] = max(300, int(entry["ttl"] * factor))
                     affected += 1
@@ -206,10 +205,10 @@ class MemoryTool:
         bank = _load_bank(workspace_dir)
         candidates: list[dict] = []
         now = time.time()
-        for kind, entries in bank.items():
+        for _kind, entries in bank.items():
             if not isinstance(entries, dict):
                 continue
-            for key, entry in entries.items():
+            for _key, entry in entries.items():
                 if _is_expired(entry):
                     continue
                 recency = (now - entry["accessed_at"]) / max(1, entry["ttl"])
@@ -284,7 +283,7 @@ def _is_expired(entry: dict) -> bool:
 
 def _prune(bank: dict) -> None:
     now = time.time()
-    for kind, entries in bank.items():
+    for _kind, entries in bank.items():
         if not isinstance(entries, dict):
             continue
         for key, entry in list(entries.items()):

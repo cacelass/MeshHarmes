@@ -197,7 +197,7 @@ class BaseAgent(ABC):
         audit.record(
             self.ctx, agent=self.name, action=action, success=result.success,
             duration_ms=(time.perf_counter() - start) * 1000,
-            message=result.message, warnings=len(result.warnings),
+            message=result.message, warnings=len(result.warnings or []),
             kwarg_names=sorted(kwargs),
             certainty=getattr(result, "certainty", None),
             confirmed=aprobada_por_humano,

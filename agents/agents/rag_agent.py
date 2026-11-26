@@ -66,7 +66,9 @@ class RagAgent(BaseAgent):
             data=result,
         )
 
-    def index_urls(self, *, urls: list[str]) -> AgentResult:
+    def index_urls(self, *, urls: list[str] | str) -> AgentResult:
+        if isinstance(urls, str):
+            urls = [u.strip() for u in urls.replace(",", " ").split() if u.strip()]
         if not RagTool.available():
             return AgentResult(
                 False, self.name, "index_urls",
@@ -94,7 +96,7 @@ class RagAgent(BaseAgent):
         return AgentResult(
             not errors or bool(indexed), self.name, "index_urls", msg,
             data={"indexed": indexed, "errors": errors},
-            warnings=[f"{e['url']}: {e['error']}" for e in errors] if errors else None,
+            warnings=[f"{e['url']}: {e['error']}" for e in errors] if errors else [],
         )
 
     def search(self, *, query: str, top_k: int = 10, hybrid: bool = True,
@@ -179,7 +181,7 @@ class RagAgent(BaseAgent):
             True, self.name, "search",
             f"{len(results)} resultado(s).\n" + "\n\n".join(bloques),
             data=results,
-            warnings=avisos or None,
+            warnings=avisos,
         )
 
     def status(self) -> AgentResult:
@@ -210,7 +212,7 @@ class RagAgent(BaseAgent):
                 + ". Buscar ahora devuelve contenido viejo sin avisar."
             )
         return AgentResult(True, self.name, "status", mensaje, data=info,
-                           warnings=avisos or None)
+                           warnings=avisos)
 
     def evaluate(self, *, top_k: int = 5) -> AgentResult:
         """
@@ -238,5 +240,5 @@ class RagAgent(BaseAgent):
             f"Solo vector: hit_rate {v['hit_rate']}, MRR {v['mrr']}. "
             f"Aporte léxico: {h['lexical_share']}.",
             data=informe,
-            warnings=[f"sin acierto: {q}" for q in fallos] or None,
+            warnings=[f"sin acierto: {q}" for q in fallos],
         )

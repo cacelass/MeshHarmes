@@ -158,9 +158,7 @@ class MemoryAgent(BaseAgent):
                     filtered.append(line)
                 continue
             if line.startswith("- **"):
-                if keep and context_lower in line.lower():
-                    filtered.append(line)
-                elif keep:
+                if keep and context_lower in line.lower() or keep:
                     filtered.append(line)
                 continue
             if keep:
@@ -306,7 +304,7 @@ class MemoryAgent(BaseAgent):
 def _tail(path: Path, n: int) -> list[str]:
     """Reads the last n lines of a file efficiently."""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         return [line.rstrip("\n\r") for line in lines[-n:]]
     except OSError:

@@ -154,7 +154,7 @@ class InstallerAgent(BaseAgent):
         nosotros a partir de una spec validada, no viene de un tercero.
         """
         espacio: dict = {"__name__": f"agents.external.{spec.module_stem}"}
-        exec(compile(fuente, spec.module_path, "exec"), espacio)
+        exec(compile(fuente, spec.module_path, "exec"), espacio)  # guardrail: allow
         return espacio[spec.class_name]
 
     @staticmethod

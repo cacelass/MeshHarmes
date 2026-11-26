@@ -86,6 +86,26 @@ devuelven `success=false`. Díselo al usuario con esas palabras y abre feature
 `description_pending: false` y `onboarding_tickets_seeded: true`. A partir de
 ahí, protocolo normal desde el paso 1.
 
+## RAG brain — memoria persistente entre features
+
+Antes de lanzar el `implementer`, consulta el cerebro persistente para no
+reinventar decisiones pasadas:
+
+```bash
+uv run python -m agents --json run rag search --query "<descripción de la feature en curso>"
+```
+
+- Pasa al `implementer` el **contexto recuperado** (rutas de los fragmentos
+  relevantes y el resumen de decisiones), no el volcado completo. El
+  implementer debe leer solo lo que el brain le indique.
+- Si el brain no devuelve hits relevantes, dilo explícitamente al
+  implementer ("sin precedente en el índice") en vez de inventar contexto.
+- Tras cerrar la feature, `make index-rag` para que la nueva decisión entre
+  en el índice y las siguientes sesiones puedan consultarla.
+
+Esto es la mejora sobre el ciclo original: el líder ya no parte de cero en
+cada feature; consulta primero.
+
 ## A quién lanzas
 
 | Situación | Subagente | Modo |

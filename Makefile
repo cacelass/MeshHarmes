@@ -116,9 +116,9 @@ profile:
 test:
 	uv run pytest
 
-check: lint typecheck test harness-check
+check: lint typecheck test harness-check guardrail
 	@echo ""
-	@echo "  ✅ check pasado: lint + typecheck + test + arnés OK"
+	@echo "  ✅ check pasado: lint + typecheck + test + arnés + guardrails OK"
 
 lint:
 	uv run ruff check $(MODULE)/ tests/ agents/
@@ -160,6 +160,10 @@ init:
 harness-check:
 	@chmod +x init.sh 2>/dev/null || true
 	@./init.sh --quick
+
+guardrail:
+	@echo "▶ Guardrails (patrones prohibidos)"
+	@uv run python tools/guardrail.py
 
 backlog:
 	@uv run $(PYTHON) -c "import json; d=json.load(open('harness/featureslist.json')); \

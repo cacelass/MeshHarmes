@@ -14,8 +14,11 @@
         "El README describe el objetivo en una frase propia, no con el texto de la plantilla",
         "./init.sh termina con ENTORNO LISTO"
       ],
-      "status": "pending",
-      "depends_on": []
+      "status": "done",
+      "depends_on": [],
+      "started": "2026-11-26",
+      "review_rounds": 0,
+      "closed": "2026-11-26"
     },
     {
       "id": "DESIGN-001",
@@ -28,10 +31,13 @@
         "El paquete app/ está renombrado al nombre real del proyecto (project.yml, pyproject.toml, Makefile y coverage coherentes)",
         "./init.sh termina con ENTORNO LISTO"
       ],
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "SCOPE-001"
-      ]
+      ],
+      "started": "2026-11-26",
+      "review_rounds": 0,
+      "closed": "2026-11-26"
     },
     {
       "id": "CORE-001",
@@ -43,10 +49,13 @@
         "make check pasa (lint + typecheck + test + arnés)",
         "El README documenta cómo ejecutarlo, con la salida esperada"
       ],
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "DESIGN-001"
-      ]
+      ],
+      "started": "2026-11-26",
+      "review_rounds": 1,
+      "closed": "2026-11-26"
     },
     {
       "id": "QA-001",
@@ -59,8 +68,11 @@
         "El workflow de CI ejecuta los mismos comandos que make check",
         "./init.sh termina con ENTORNO LISTO"
       ],
-      "status": "pending",
-      "depends_on": []
+      "status": "done",
+      "depends_on": [],
+      "started": "2026-11-26",
+      "review_rounds": 0,
+      "closed": "2026-11-26"
     },
     {
       "id": "BOOT-001",
@@ -136,8 +148,11 @@
         "El README describe el objetivo en una frase propia",
         "./init.sh termina con ENTORNO LISTO"
       ],
-      "status": "pending",
-      "depends_on": []
+      "status": "done",
+      "depends_on": [],
+      "started": "2026-11-26",
+      "review_rounds": 0,
+      "closed": "2026-11-26"
     },
     {
       "id": "ONBOARD-002",
@@ -152,10 +167,13 @@
         "uv run python -m agents.prompts_sync sale en verde (todo agente registrado tiene prompt y contrato)",
         "./init.sh termina con ENTORNO LISTO"
       ],
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "ONBOARD-001"
-      ]
+      ],
+      "started": "2026-11-26",
+      "review_rounds": 1,
+      "closed": "2026-11-26"
     },
     {
       "id": "BOOT-004",
@@ -190,6 +208,60 @@
       "started": "2026-08-04",
       "review_rounds": 0,
       "closed": "2026-08-04"
+    },
+    {
+      "id": "RAG-001",
+      "title": "Lider consulta el RAG brain antes de abrir una feature",
+      "description": "Lider consulta el RAG brain antes de abrir una feature",
+      "acceptance_criteria": [
+        "El lider ejecuta rag search con la descripcion de la feature antes de lanzar implementer",
+        "El contexto recuperado se pasa al implementer",
+        "make check pasa",
+        "./init.sh ENTORNO LISTO"
+      ],
+      "status": "done",
+      "depends_on": [
+        "DESIGN-001"
+      ],
+      "started": "2026-11-26",
+      "review_rounds": 0,
+      "closed": "2026-11-26"
+    },
+    {
+      "id": "EVAL-001",
+      "title": "Agent evals para skills y prompts",
+      "description": "Agent evals para skills y prompts",
+      "acceptance_criteria": [
+        "Existe un eval que mide si un agente sigue su skill",
+        "El eval se ejecuta en make check o make agents-eval",
+        "make check pasa",
+        "./init.sh ENTORNO LISTO"
+      ],
+      "status": "done",
+      "depends_on": [
+        "DESIGN-001"
+      ],
+      "started": "2026-11-26",
+      "review_rounds": 0,
+      "closed": "2026-11-26"
+    },
+    {
+      "id": "GUARD-001",
+      "title": "Guardrails adicionales mas alla de la puerta de permisos",
+      "description": "Guardrails adicionales mas alla de la puerta de permisos",
+      "acceptance_criteria": [
+        "Existe al menos un guardrail automatizado (ban de patron en codigo)",
+        "El guardrail se ejecuta en make check",
+        "make check pasa",
+        "./init.sh ENTORNO LISTO"
+      ],
+      "status": "done",
+      "depends_on": [
+        "DESIGN-001"
+      ],
+      "started": "2026-11-26",
+      "review_rounds": 0,
+      "closed": "2026-11-26"
     }
   ]
 }

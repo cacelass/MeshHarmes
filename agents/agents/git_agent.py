@@ -217,9 +217,7 @@ class GitAgent(BaseAgent):
         breaking = []
         for commit in commits:
             parsed = self.git.parse_conventional_commit(commit["subject"])
-            if parsed and parsed["breaking"]:
-                breaking.append(commit["subject"])
-            elif "BREAKING CHANGE" in commit["subject"].upper():
+            if parsed and parsed["breaking"] or "BREAKING CHANGE" in commit["subject"].upper():
                 breaking.append(commit["subject"])
 
         note = (

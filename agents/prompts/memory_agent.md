@@ -26,10 +26,11 @@ Combate el *behavioral state decay* en tareas largas. Observa, almacena, provee 
 | Acción | Argumentos |
 |--------|------------|
 | `run memory status` | — |
-| `run memory note` | `--key`, `--value` (obligatorio) · `--kind` |
+| `run memory note` | `--key`, `--value` (obligatorio) · `--kind`, `--scope` |
 | `run memory recall` | `--key` (obligatorio) |
 | `run memory forget` | `--key` (obligatorio) |
-| `run memory search` | `--query` (obligatorio) · `--kind`, `--limit` |
+| `run memory memory_edit` | `--id` (obligatorio) · `--action`, `--value`, `--scope`, `--ttl` |
+| `run memory search` | `--query` (obligatorio) · `--kind`, `--scope`, `--limit` |
 | `run memory snapshot` | — |
 | `run memory inject` | `--context`, `--max_entries` |
 | `run memory observe` | `--max_entries` |

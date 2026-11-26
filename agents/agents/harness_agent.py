@@ -14,6 +14,7 @@ forma de saltársela pidiéndoselo amablemente al modelo.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from datetime import date
@@ -669,7 +670,7 @@ class HarnessAgent(BaseAgent):
         )
 
     @property
-    def _features_dir(self) -> "Path":
+    def _features_dir(self) -> Path:
         return self.ctx.root / "features"
 
     @staticmethod
@@ -760,15 +761,11 @@ class HarnessAgent(BaseAgent):
 
         self._current_file.parent.mkdir(parents=True, exist_ok=True)
         # reuse current.md write minimal
-        try:
-            from datetime import date as _d
-            criteria_text = "\n".join(f"- [ ] {c}" for c in feat.get("acceptance_criteria", [])) or "_(sin criterios)_"
+        with contextlib.suppress(Exception):
             self._current_file.write_text(
                 f"# Tarea actual\n\n**Feature:** {id}\n**Estado:** in_progress\n",
                 encoding="utf-8",
             )
-        except Exception:
-            pass
 
         return AgentResult(
             success=True, agent=self.name, action="approve",
@@ -891,7 +888,7 @@ class HarnessAgent(BaseAgent):
             header += f"- **Certeza:** {min(max(certainty, 0.0), 1.0):.2f}\n"
         header += "\n"
         if packet:
-            import json, re
+            import json
             try:
                 doc = json.loads(packet)
             except json.JSONDecodeError:

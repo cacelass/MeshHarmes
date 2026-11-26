@@ -147,6 +147,41 @@ def _contracts() -> list[dict]:
     ] + ([{"warning": p} for p in problems] if problems else [])
 
 
+def _skills() -> list[dict]:
+    """
+    Skills test: cada agente registrado tiene un prompt en agents/prompts/ y
+    ese prompt menciona todas las acciones que el agente declara. Es el
+    contrapeso de "el agente sigue su skill": si una acción no aparece en el
+    prompt, el asistente no sabrá que existe.
+    """
+    root = get_context().root
+    agent_registry.discover()
+    orchestrator = Orchestrator(context=get_context())
+    results = []
+    for name in sorted(agent_registry.all()):
+        prompt_path = root / "agents" / "prompts" / f"{name}_agent.md"
+        if not prompt_path.is_file():
+            results.append({"agent": name, "success": False,
+                            "message": f"FALTA agents/prompts/{name}_agent.md"})
+            continue
+        texto = prompt_path.read_text(encoding="utf-8", errors="replace")
+        try:
+            agent = orchestrator._get_instance(name)
+            actions = list(agent.actions().keys())
+        except Exception as exc:  # noqa: BLE001
+            results.append({"agent": name, "success": False, "message": f"instancia: {exc}"})
+            continue
+        faltan = [a for a in actions if a not in texto]
+        ok = len(faltan) == 0
+        results.append({
+            "agent": name,
+            "success": ok,
+            "message": ("todas las acciones documentadas" if ok
+                        else "faltan en el prompt: " + ", ".join(faltan)),
+        })
+    return results
+
+
 HARNESS_AGENTS = ("lider", "implementer", "reviewer", "explorer")
 HARNESS_STATUS = ("pending", "in_progress", "done", "blocked")
 HARNESS_REQUIRED = ("id", "title", "description", "acceptance_criteria", "status")
@@ -300,7 +335,7 @@ def _summarize(results: list[dict], label: str) -> dict:
 
 
 def run_evals(smoke: bool = True, routing: bool = True, contracts: bool = True,
-              harness: bool = True, rag: bool = True,
+              harness: bool = True, rag: bool = True, skills: bool = True,
               json_output: bool = False) -> EvalReport:
     orchestrator = Orchestrator(context=get_context())
     agent_registry.discover()
@@ -325,6 +360,9 @@ def run_evals(smoke: bool = True, routing: bool = True, contracts: bool = True,
             "warnings": len(warnings),
             "results": contract_results,
         }
+    if skills:
+        skill_results = _skills()
+        suites["skills"] = _summarize(skill_results, "skills")
 
     overall_pass = all(
         s.get("failed", 0) == 0 and s.get("warnings", 0) == 0
@@ -374,10 +412,11 @@ def main() -> int:
     parser.add_argument("--contracts", action="store_true", help="Solo contracts")
     parser.add_argument("--harness", action="store_true", help="Solo harness (piezas del arnés)")
     parser.add_argument("--rag", action="store_true", help="Solo recuperación del RAG")
+    parser.add_argument("--skills", action="store_true", help="Solo skills/prompts")
     parser.add_argument("--json", "-j", action="store_true", help="Salida JSON")
     args = parser.parse_args()
 
-    selected = args.smoke or args.routing or args.contracts or args.harness or args.rag
+    selected = args.smoke or args.routing or args.contracts or args.harness or args.rag or args.skills
 
     report = run_evals(
         smoke=args.smoke or not selected,
@@ -385,6 +424,7 @@ def main() -> int:
         contracts=args.contracts or not selected,
         harness=args.harness or not selected,
         rag=args.rag or not selected,
+        skills=args.skills or not selected,
         json_output=args.json,
     )
     return 0 if report["success"] else 1

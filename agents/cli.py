@@ -37,7 +37,7 @@ def _print_result(result: AgentResult, *, json_mode: bool = False) -> None:
         return
     status = "✔" if result.success else "✘"
     print(f"{status} [{result.agent}.{result.action}] {result.message}")
-    for warning in result.warnings:
+    for warning in (result.warnings or []):
         print(f"  ⚠ {warning}")
     if result.data is not None:
         try:

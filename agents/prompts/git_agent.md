@@ -40,6 +40,7 @@ commitea todo con `feat(<id>): <título>`.
 | `run git detect_breaking_changes` | `--since_tag`, `--max_count` |
 | `run git prepare_pr_summary` | `--since_tag` |
 | `run git commit_with_changelog` ⚠️ pide confirmación | `--message` (obligatorio) · `--since_tag` |
+| `run git commit_atomic` | `--dry_run`, `--subjects` |
 | `run git commit_feature` ⚠️ pide confirmación | `--id`, `--title`, `--message`, `--dry_run` |
 | `run git tag_release` ⚠️ pide confirmación | `--version` (obligatorio) · `--message`, `--since_tag` |
 | `run git create_branch` ⚠️ pide confirmación | `--branch_name` (obligatorio) · `--base_branch` |

@@ -68,7 +68,7 @@ class ResearchAgent(BaseAgent):
     def _gather_project_text(self) -> str:
         """Junta el texto del que se extraen las keywords: README + pyproject + grafo."""
         parts: list[str] = []
-        for path in (self.ctx.readme_file, self.ctx.pyproject_file):
+        for path in (self.ctx.readme_file, self.ctx.pyproject_file, self.ctx.root / "project.yml"):
             if path.exists():
                 with contextlib.suppress(OSError):
                     parts.append(path.read_text(encoding="utf-8", errors="ignore"))
@@ -146,6 +146,15 @@ class ResearchAgent(BaseAgent):
             return search_result
 
         papers = ResearchTool.rank(search_result.data["papers"], keywords)
+        # Si el backend elegido no devuelve nada, reintentar con el otro
+        # (openalex y arxiv difieren mucho en cobertura para consultas largas).
+        if not papers:
+            otro = "arxiv" if backend == "openalex" else "openalex"
+            fallback = self.search(query=query, backend=otro, max_results=max_results)
+            if fallback.success and fallback.data["papers"]:
+                papers = ResearchTool.rank(fallback.data["papers"], keywords)
+                backend = otro
+
         return AgentResult(
             True, self.name, "find_papers",
             f"{len(papers)} paper(s) relacionados con el proyecto (backend {backend}).",
