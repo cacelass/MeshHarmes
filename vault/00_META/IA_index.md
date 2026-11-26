@@ -8,7 +8,7 @@
 - **Nombre:** MeshHarmes
 - **Paquete:** `app/` (declarado en `project.yml`)
 - **Versión:** 0.1.0
-- **Descripción:** Arnés de agentes con memoria persistente (RAG sobre embeddings y grafo) que gobierna el ciclo de desarrollo.
+- **Descripción:** Arnés de agentes e infraestructura de proyecto para trabajo general en Python.
 - **Autor:** cacelass
 
 ## Estructura del vault

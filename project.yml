@@ -9,7 +9,7 @@
 project_name: MeshHarmes
 project_slug: app
 project_author_name: cacelass
-project_description: Evolucionar el arnes MeshHarmes para que la gestion de tickets use RAG (embeddings + grafo de conocimiento) como cerebro persistente entre features, mejorar (no reemplazar) la metodologia del lider y adoptar la discusion con la IA para mejorar la calidad del codigo sin obligar a revision manual linea a linea. No se adoptan los modelos especificos mencionados en las fuentes: se usan los del proyecto.
+project_description: Arnés de agentes e infraestructura de proyecto para trabajo general en Python.
 project_version: 0.1.0
 # La versión del .venv. uv la resuelve desde requires-python en pyproject.toml.
 python_version: 3.12

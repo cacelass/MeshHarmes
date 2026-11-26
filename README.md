@@ -1,20 +1,16 @@
 # MeshHarmes
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.1.3-green)
+![Version](https://img.shields.io/badge/Version-0.1.1-green)
 ![Author](https://img.shields.io/badge/Author-cacelass-blueviolet)
 
-> Arnés de agentes con memoria persistente (RAG sobre embeddings y grafo) que
-> gobierna el ciclo de desarrollo: backlog, puerta de entrada, permisos y
-> calidad por discusión con la IA.
+> Arnés de agentes e infraestructura de proyecto para trabajo general en Python.
 
-Un repositorio donde el trabajo lo hace —en parte— un agente de IA, con las
-reglas del juego escritas **en código** y no en un prompt: una puerta de
-entrada que decide si se puede trabajar, un backlog con criterios de
-aceptación, memoria fuera de la ventana de contexto respaldada por RAG, y una
-puerta de permisos para las acciones que no se deshacen. El conocimiento
-acumulado entre features se consulta antes de decidir, y la calidad se busca
-mediante discusión con la IA sin obligar a revisión manual línea a línea.
+Un repositorio para empezar proyectos donde el trabajo lo hace —en parte— un
+agente de IA, con las reglas del juego escritas **en código** y no en un
+prompt: una puerta de entrada que decide si se puede trabajar, un backlog con
+criterios de aceptación, memoria fuera de la ventana de contexto y una puerta
+de permisos para las acciones que no se deshacen.
 
 No incluye nada de un dominio concreto. El paquete `app/` está vacío a
 propósito: ahí va tu código.
@@ -118,30 +114,6 @@ confirmación tuya antes de ejecutarlo). El push siempre es decisión tuya.
 El protocolo completo está en [`AGENTS.md`](AGENTS.md).
 
 ---
-
-## Memoria y búsqueda (RAG)
-
-El arnés mantiene un **cerebro persistente** sobre el propio repositorio:
-indexa código, docs, vault, `harness/progress/` y `harness/featureslist.json`
-en un índice vectorial (ChromaDB) fusionado con BM25 léxico. Antes de
-decidir, el líder consulta este índice para no reinventar decisiones pasadas.
-
-```bash
-uv sync --extra rag            # instala chromadb (opcional, pesado)
-make index-rag                 # construye/actualiza el índice
-uv run python -m agents run rag search --query "qué se decidió sobre el backlog"
-```
-
-Salida esperada (resumen):
-
-```
-✔ [rag.search] 10 resultado(s).
-Del repositorio:
-  [ambos rrf=... cos=...] vault/01_PROYECTO/objetivo.md:0 — ...
-```
-
-Medir la recuperación: `make eval-rag` (hit_rate, recall@k, MRR sobre
-`agents/evals/rag_golden.json`).
 
 ## Sistema de agentes
 
