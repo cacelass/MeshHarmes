@@ -12,6 +12,12 @@ añade aquí una entrada por cada feature cerrada del arnés.
 
 ### Añadido
 
+- Fix review_package path kwarg + python 3.13 (GUARD-001)
+
+## [Unreleased] — 2026-11-26
+
+### Añadido
+
 - Protocolo: commit obligatorio por feature + RAG + push (GUARD-001)
 
 ## [Unreleased] — 2026-11-26

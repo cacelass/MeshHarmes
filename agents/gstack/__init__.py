@@ -15,7 +15,7 @@ Uso básico
 
     stack = GStack()
     stack.push("git", "analyze_diff")
-    stack.push("review", "review_package", path=".")
+    stack.push("review", "review_package", within=".")
     stack.push("git", "commit_with_changelog", message="feat: mejora tras revisión")
     result = stack.run()
 

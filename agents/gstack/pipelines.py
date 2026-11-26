@@ -29,7 +29,7 @@ def auto_analyze(*, auto_commit: bool = True, confirm: bool = False) -> StackRes
     stack.push("env", "info")
     stack.push("env", "check_python_version")
     stack.push("git", "analyze_diff")
-    stack.push("review", "review_package", path=".", result_key="review")
+    stack.push("review", "review_package", within=".", result_key="review")
     stack.push("env", "check_lock_sync")
     return stack.run()
 
@@ -42,7 +42,7 @@ def auto_develop(*, auto_commit: bool = True, confirm: bool = False) -> StackRes
     """
     stack = GStack(auto_commit=auto_commit, commit_on_error=True, confirm=confirm)
     stack.push("git", "analyze_diff")
-    stack.push("review", "review_package", path=".", result_key="review")
+    stack.push("review", "review_package", within=".", result_key="review")
     stack.push(
         "test", "run_tests",
         run_if=lambda r, m: r[-1].success if r else True,
@@ -67,7 +67,7 @@ def auto_fix(*, auto_commit: bool = True, confirm: bool = False) -> StackResult:
     """
     stack = GStack(auto_commit=auto_commit, commit_on_error=True, confirm=confirm)
     stack.push("test", "run_tests", result_key="baseline")
-    stack.push("review", "review_package", path=".", result_key="review")
+    stack.push("review", "review_package", within=".", result_key="review")
     stack.push("refactor", "fix_bare_excepts")
     stack.push("refactor", "add_type_hints")
     stack.push("test", "run_tests")
@@ -79,7 +79,7 @@ def auto_commit_cycle(*, phases: int = 3, auto_commit: bool = True, confirm: boo
     """Ciclo iterativo: revisa → test → repite."""
     stack = GStack(auto_commit=auto_commit, commit_on_error=True, confirm=confirm)
     for i in range(phases):
-        stack.push("review", "review_package", path=".", result_key=f"review_{i}")
+        stack.push("review", "review_package", within=".", result_key=f"review_{i}")
         stack.push("test", "run_tests")
     stack.push("git", "commit_with_changelog", message="chore: fin del ciclo de desarrollo autónomo")
     return stack.run()
