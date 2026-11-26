@@ -1,7 +1,7 @@
 # MeshHarmes
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white)
-![Version](https://img.shields.io/badge/Version-0.1.2-green)
+![Version](https://img.shields.io/badge/Version-0.1.3-green)
 ![Author](https://img.shields.io/badge/Author-cacelass-blueviolet)
 
 > Arnés de agentes con memoria persistente (RAG sobre embeddings y grafo) que

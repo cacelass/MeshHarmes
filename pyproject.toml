@@ -1,6 +1,6 @@
 [project]
 name = "app"
-version = "0.1.2"
+version = "0.1.3"
 description = "Arnés de agentes e infraestructura de proyecto para trabajo general en Python."
 authors = [
   { name = "cacelass" }

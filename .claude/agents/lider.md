@@ -38,11 +38,17 @@ uv run python -m agents --json run harness finish --id <FEATURE-ID> \
   --evidence "<salida literal de make test / init.sh>" \
   --changes "<rutas tocadas>" --decisions "<lo no obvio>"
 
-# 6. Cierre: README + versión + commit. Propón primero, no comitees sin OK.
+# 6. Cierre: README + versión + commit + push (OBLIGATORIO). No se cierra sin commit.
+#   6a. Propón primero (dry-run) y espera OK.
 uv run python -m agents --json run git commit_feature --id <FEATURE-ID> --title "<título>" \
-  --dry-run true        # devuelve la propuesta: versión, mensaje y ficheros
-#   → enséñale la propuesta al usuario y espera su confirmación
-uv run python -m agents --json run git commit_feature --id <FEATURE-ID> --title "<título>"
+  --dry-run true
+#   6b. Commit real con --yes tras la confirmación.
+uv run python -m agents --json run git commit_feature --id <FEATURE-ID> --title "<título>" --yes
+#   6c. Documenta el commit en el RAG brain.
+make index-rag
+#   6d. Si se descubrió algo (bug, decisión, riesgo), escríbelo en vault/06_OBSERVACIONES/
+#       o en el vault correspondiente ANTES de commitear.
+#   6e. Push explícito del usuario: git push
 ```
 
 Si algo se atasca: `run harness block --id <ID> --reason "<motivo>"`.

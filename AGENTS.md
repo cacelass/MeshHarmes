@@ -20,7 +20,7 @@ sigue estos pasos **en orden**, antes de escribir una sola línea de código.
 5. delegar                      explorer → implementer → reviewer
 6. verificar                    ./init.sh en verde + criterios uno a uno
 7. done                         harness/featureslist.json + resumen en history.md
-8. commit_feature               README + versión al día, propón commit, confirma
+8. commit_feature (OBLIGATORIO) README + versión al día + commit + push; documenta el commit en RAG (make index-rag) y cualquier descubrimiento en vault/progress. No se cierra el ciclo sin commit.
 ```
 
 ## Arranque en frío
@@ -92,14 +92,22 @@ cuenta.
 uv run python -m agents --json run harness gate    # lo mismo, vía agente
 ```
 
-## Cierre de una feature: versión + commit
+## Cierre de una feature: versión + commit + push (OBLIGATORIO)
 
 Al marcar una feature `done`, el líder cierra el ciclo con `git commit_feature`:
-sube el **patch** de la versión (`0.1.0` → `0.1.1`) en `pyproject.toml` y el
-badge del README, añade la feature al CHANGELOG y commitea todo con un mensaje
-Conventional. **Primero en `--dry-run` para proponer y pedir tu OK; el commit
-real solo se ejecuta tras tu confirmación.** El push sigue siendo decisión
-tuya, siempre explícita.
+sube el **patch** de la versión en `pyproject.toml` y el badge del README,
+añade la feature al CHANGELOG y commitea todo con un mensaje Conventional.
+El commit es **obligatorio** por feature: no se cierra el ciclo sin él.
+
+Flujo obligatorio:
+1. `--dry-run true` para proponer (versión, mensaje, ficheros) y pedir OK.
+2. Commit real con `--yes` tras la confirmación.
+3. `make index-rag` para que el commit y la decisión entren en el RAG brain.
+4. Si se descubrió algo (bug, decisión, riesgo), escribirlo en
+   `vault/06_OBSERVACIONES/` o en el vault correspondiente antes de commitear.
+5. Push explícito del usuario (`git push`).
+
+El push sigue siendo decisión del usuario, siempre explícita.
 
 ```bash
 uv run python -m agents --json run git commit_feature --id <ID> --title "<t>" --dry-run true
